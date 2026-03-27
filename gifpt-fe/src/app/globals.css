@@ -2,81 +2,98 @@
 
 /* ── GIFPT Design Tokens ───────────────────────────────────────── */
 :root {
-  --bg-base:     #08080f;
-  --bg-surface:  #10101a;
-  --bg-elevated: #181824;
-  --border:      #ffffff0f;
-  --border-strong: #ffffff1a;
+  --bg-base:            #131313;
+  --bg-lowest:          #0e0e0e;
+  --bg-surface:         #1c1b1b;
+  --bg-elevated:        #2a2a2a;
+  --bg-highest:         #353534;
+  --border:             rgba(70, 69, 84, 0.15);
+  --border-strong:      rgba(70, 69, 84, 0.3);
 
-  --accent:      #7c6af7;
-  --accent-hover:#9585f8;
-  --accent-glow: rgba(124, 106, 247, 0.18);
+  --primary:            #c0c1ff;
+  --primary-container:  #8083ff;
+  --secondary:          #ddb7ff;
+  --secondary-container:#6f00be;
 
-  --text-primary:   #f2f2f8;
-  --text-secondary: #7b7b9a;
-  --text-muted:     #44445a;
+  --accent:             #8083ff;
+  --accent-hover:       #c0c1ff;
+  --accent-glow:        rgba(128, 131, 255, 0.15);
+
+  --text-primary:       #e5e2e1;
+  --text-secondary:     #c7c4d7;
+  --text-muted:         #908fa0;
 
   --success: #4ade80;
-  --error:   #f87171;
+  --error:   #ffb4ab;
   --warning: #fbbf24;
 }
 
 /* ── Tailwind v4 theme mapping ─────────────────────────────────── */
 @theme inline {
-  --color-base:      var(--bg-base);
-  --color-surface:   var(--bg-surface);
-  --color-elevated:  var(--bg-elevated);
-  --color-subtle:    var(--border);
-  --color-accent:    var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-primary:   var(--text-primary);
-  --color-secondary: var(--text-secondary);
-  --color-muted:     var(--text-muted);
-  --color-success:   var(--success);
-  --color-error:     var(--error);
-  --color-warning:   var(--warning);
+  --color-base:        var(--bg-base);
+  --color-surface:     var(--bg-surface);
+  --color-elevated:    var(--bg-elevated);
+  --color-subtle:      var(--border);
+  --color-primary:     var(--primary);
+  --color-accent:      var(--accent);
+  --color-secondary:   var(--secondary);
+  --color-on-surface:  var(--text-primary);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans:     var(--font-inter);
+  --font-mono:     var(--font-jetbrains-mono);
+  --font-headline: var(--font-manrope);
+  --font-body:     var(--font-inter);
+  --font-label:    var(--font-space-grotesk);
 
-  --radius-card:   16px;
-  --radius-canvas: 20px;
-  --radius-input:  14px;
+  --radius-card:  0.75rem;
+  --radius-input: 0.75rem;
 }
 
 /* ── Base ──────────────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 html {
   color-scheme: dark;
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 body {
   background:
-    radial-gradient(ellipse 100% 60% at 50% -5%, rgba(124, 106, 247, 0.12) 0%, transparent 65%),
-    radial-gradient(ellipse 50% 30% at 80% 100%, rgba(124, 106, 247, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 50% 40%, rgba(111, 0, 190, 0.12) 0%, transparent 65%),
     var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
 }
 
 /* ── Typography ────────────────────────────────────────────────── */
-h1, h2, h3, h4, h5, h6 {
-  text-wrap: balance;
-}
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
 
-/* ── Gradient text ─────────────────────────────────────────────── */
-.text-gradient {
-  background: linear-gradient(135deg, #a78bfa 0%, #7c6af7 40%, #60a5fa 100%);
+/* ── Gradient utilities ────────────────────────────────────────── */
+.hero-text-gradient {
+  background: linear-gradient(to right, #c0c1ff, #ddb7ff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.action-gradient {
+  background: linear-gradient(135deg, #c0c1ff 0%, #8083ff 100%);
+}
+
+/* ── Material Symbols ──────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  user-select: none;
 }
 
 /* ── Focus ring ────────────────────────────────────────────────── */

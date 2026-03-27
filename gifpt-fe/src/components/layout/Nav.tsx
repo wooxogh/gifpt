@@ -1,13 +1,14 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useRouter, Link } from '@/i18n/navigation'
+import { useRouter, Link, usePathname } from '@/i18n/navigation'
 import { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Nav() {
   const t = useTranslations('nav')
   const router = useRouter()
+  const pathname = usePathname()
   const { auth, logout } = useAuth()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -22,70 +23,84 @@ export default function Nav() {
   }
 
   return (
-    <header
+    <nav
+      className="fixed top-0 w-full z-50"
       style={{
-        background: 'rgba(8, 8, 15, 0.75)',
-        borderBottom: '1px solid var(--border)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
+        background: 'rgba(19, 19, 19, 0.6)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        boxShadow: '0 8px 32px 0 rgba(128, 131, 255, 0.08)',
+        borderBottom: '1px solid rgba(70,69,84,0.15)',
       }}
-      className="fixed top-0 left-0 right-0 z-50 h-16"
     >
-      <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
+      <div className="flex justify-between items-center px-8 h-20 w-full max-w-screen-2xl mx-auto">
         <Link
           href="/"
-          className="font-mono text-lg font-semibold tracking-tight"
-          style={{ color: 'var(--accent)' }}
+          className="text-2xl font-black tracking-tighter"
+          style={{ fontFamily: 'var(--font-manrope)', color: 'var(--primary)' }}
         >
           GIFPT
         </Link>
 
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="hidden md:flex items-center space-x-8" style={{ fontFamily: 'var(--font-manrope)', fontSize: '14px' }}>
           <Link
             href="/gallery"
-            className="hidden sm:flex items-center h-11 px-3 text-sm rounded-lg transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
+            className="transition-colors relative"
+            style={{ color: pathname === '/gallery' ? 'var(--primary)' : 'var(--text-muted)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
+            onMouseLeave={(e) => {
+              if (pathname !== '/gallery') e.currentTarget.style.color = 'var(--text-muted)'
+            }}
           >
             {t('gallery')}
+            {pathname === '/gallery' && (
+              <span
+                className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full"
+                style={{ background: 'var(--primary)' }}
+              />
+            )}
           </Link>
 
           {auth.status === 'authenticated' ? (
-            <>
-              <span
-                className="hidden sm:flex items-center h-11 px-3 text-sm"
-                style={{ color: 'var(--text-secondary)' }}
-              >
+            <div className="flex items-center space-x-4">
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 {auth.email}
               </span>
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="flex items-center h-11 px-4 text-sm rounded-lg font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', opacity: isLoggingOut ? 0.6 : 1 }}
+                className="px-5 py-2 rounded-lg font-bold transition-all duration-200 active:scale-95"
+                style={{
+                  background: 'var(--primary)',
+                  color: '#0d0096',
+                  opacity: isLoggingOut ? 0.7 : 1,
+                }}
               >
                 {isLoggingOut ? '...' : t('logout')}
               </button>
-            </>
+            </div>
           ) : (
-            <>
+            <div className="flex items-center space-x-4">
               <Link
                 href="/login"
-                className="hidden sm:flex items-center h-11 px-4 text-sm rounded-lg transition-colors"
-                style={{ color: 'var(--text-secondary)' }}
+                className="transition-colors hover:opacity-80 active:scale-95 duration-150"
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
               >
                 {t('login')}
               </Link>
               <Link
                 href="/signup"
-                className="flex items-center h-11 px-4 text-sm rounded-lg font-medium transition-colors"
-                style={{ background: 'var(--accent)', color: 'white' }}
+                className="px-5 py-2 rounded-lg font-bold hover:opacity-80 transition-all duration-300 active:scale-95"
+                style={{ background: 'var(--primary)', color: '#0d0096' }}
               >
                 {t('signup')}
               </Link>
-            </>
+            </div>
           )}
         </div>
       </div>
-    </header>
+    </nav>
   )
 }
