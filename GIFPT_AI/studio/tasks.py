@@ -439,9 +439,9 @@ Return JSON ONLY with keys: summary, video_instructions
 # ---------------------------------------------------------------------------
 
 def _s3_key_for_slug(slug: str) -> str:
-    """Deterministic S3 key: animations/SHA256(slug).mp4"""
+    """Deterministic S3 key: videos/SHA256(slug).mp4"""
     digest = hashlib.sha256(slug.encode()).hexdigest()
-    return f"animations/{digest}.mp4"
+    return f"videos/{digest}.mp4"
 
 
 def _s3_object_exists(key: str) -> bool:
