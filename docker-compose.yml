@@ -12,8 +12,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
 
-      SPRING_DATASOURCE_URL: jdbc:mysql://${DB_HOST}:3306/gifpt?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_URL: jdbc:mysql://${DB_HOST:-host.docker.internal}:3306/gifpt?useSSL=${DB_USE_SSL:-false}&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-root}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
 
       GIFPT_UPLOAD_DIR: /data/uploads
@@ -23,8 +23,8 @@ services:
 
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ap-northeast-2
-      GIFPT_S3_BUCKET: gifpt-s3
+      AWS_REGION: ap-northeast-1
+      GIFPT_S3_BUCKET: gifpt-demo
 
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
@@ -41,6 +41,8 @@ services:
     build:
       context: ./GIFPT_AI
       dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
     image: ehho/gifpt-django:latest   # ✅ AI 웹 서버
     platform: linux/amd64
     environment:
@@ -68,6 +70,8 @@ services:
     build:
       context: ./GIFPT_AI
       dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
     image: ehho/gifpt-worker:latest
     platform: linux/amd64
     environment:
@@ -85,7 +89,7 @@ services:
       CELERY_QUEUE: gifpt.default
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ap-northeast-2
+      AWS_REGION: ap-northeast-1
 
     volumes:
       - ./GIFPT_AI:/app
