@@ -161,7 +161,11 @@ export default function Hero() {
         {state.phase === 'error' && (
           <div className="flex flex-col items-center gap-3">
             <p className="text-sm" style={{ color: 'var(--error)' }}>
-              {te('generation_failed')}
+              {state.message === 'timeout'
+                ? te('timeout')
+                : state.message
+                ? state.message
+                : te('generation_failed')}
             </p>
             <button
               onClick={reset}

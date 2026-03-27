@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { fetchAnimate, fetchJobStatus } from '@/lib/api'
 
 export type AnimateState =
@@ -13,12 +13,25 @@ export type AnimateState =
   | { phase: 'error'; message: string }
 
 const POLL_INTERVAL_MS = 3000
-const MAX_POLLS = 60 // 3분
+const MAX_POLLS = 20 // 최대 1분 (20 × 3초)
 
 export function useAnimate() {
   const [state, setState] = useState<AnimateState>({ phase: 'idle' })
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollCount = useRef(0)
+  const isMountedRef = useRef(true)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (pollRef.current) {
+        clearTimeout(pollRef.current)
+        pollRef.current = null
+      }
+    }
+  }, [])
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -30,15 +43,22 @@ export function useAnimate() {
 
   const poll = useCallback((jobId: number) => {
     pollRef.current = setTimeout(async () => {
+      if (!isMountedRef.current) return // Guard against unmounted component
+
       if (pollCount.current >= MAX_POLLS) {
         stopPolling()
-        setState({ phase: 'error', message: 'timeout' })
+        if (isMountedRef.current) {
+          setState({ phase: 'error', message: 'timeout' })
+        }
         return
       }
       pollCount.current++
 
       try {
         const job = await fetchJobStatus(jobId)
+        
+        if (!isMountedRef.current) return // Guard after async operation
+        
         if (job.status === 'SUCCESS') {
           stopPolling()
           setState({ phase: 'success', videoUrl: job.resultUrl, cached: false })
@@ -50,6 +70,7 @@ export function useAnimate() {
           poll(jobId)
         }
       } catch {
+        if (!isMountedRef.current) return
         stopPolling()
         setState({ phase: 'error', message: 'generation_failed' })
       }
@@ -62,6 +83,8 @@ export function useAnimate() {
 
     try {
       const { status, data } = await fetchAnimate(algorithm)
+
+      if (!isMountedRef.current) return // Guard after async operation
 
       if (status === 200 && 'videoUrl' in data) {
         setState({ phase: 'success', videoUrl: data.videoUrl, cached: true })
@@ -81,13 +104,16 @@ export function useAnimate() {
 
       setState({ phase: 'error', message: 'generation_failed' })
     } catch {
+      if (!isMountedRef.current) return
       setState({ phase: 'error', message: 'generation_failed' })
     }
   }, [poll, stopPolling])
 
   const reset = useCallback(() => {
     stopPolling()
-    setState({ phase: 'idle' })
+    if (isMountedRef.current) {
+      setState({ phase: 'idle' })
+    }
   }, [stopPolling])
 
   return { state, animate, reset }
