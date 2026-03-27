@@ -1,26 +1,68 @@
 @import "tailwindcss";
 
+/* ── GIFPT Design Tokens ───────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-base:     #0a0a0f;
+  --bg-surface:  #13131a;
+  --bg-elevated: #1c1c26;
+  --border:      #2a2a3a;
+
+  --accent:      #7c6af7;
+  --accent-hover:#9585f8;
+  --accent-glow: rgba(124, 106, 247, 0.15);
+
+  --text-primary:   #f0f0f5;
+  --text-secondary: #8888aa;
+  --text-muted:     #555577;
+
+  --success: #4ade80;
+  --error:   #f87171;
+  --warning: #fbbf24;
 }
 
+/* ── Tailwind v4 theme mapping ─────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-base:      var(--bg-base);
+  --color-surface:   var(--bg-surface);
+  --color-elevated:  var(--bg-elevated);
+  --color-subtle:    var(--border);
+  --color-accent:    var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-primary:   var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted:     var(--text-muted);
+  --color-success:   var(--success);
+  --color-error:     var(--error);
+  --color-warning:   var(--warning);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --radius-card:   12px;
+  --radius-canvas: 16px;
+  --radius-input:  12px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* ── Focus ring ────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent-glow);
 }

@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "gallery": "갤러리",
+    "login": "로그인",
+    "signup": "회원가입"
+  },
+  "hero": {
+    "title": "모든 알고리즘을 애니메이션으로",
+    "subtitle": "알고리즘 이름을 입력하면 60초 안에 Manim 애니메이션을 만들어드려요.",
+    "placeholder": "예: 버블 정렬, 다익스트라, 이진 탐색 트리...",
+    "cta": "애니메이션 생성",
+    "hint": "캐시된 애니메이션은 로그인 없이 볼 수 있어요"
+  },
+  "status": {
+    "processing": "생성 중",
+    "done": "완료",
+    "failed": "실패",
+    "cached": "캐시됨"
+  },
+  "canvas": {
+    "loading": "애니메이션을 렌더링하는 중...",
+    "export": "GIF 내보내기",
+    "share": "링크 복사",
+    "fullscreen": "전체화면"
+  },
+  "gallery": {
+    "title": "공개 갤러리",
+    "subtitle": "커뮤니티가 생성한 애니메이션",
+    "empty": "아직 애니메이션이 없어요. 첫 번째로 만들어보세요!",
+    "filter_all": "전체",
+    "filter_sorting": "정렬",
+    "filter_graph": "그래프",
+    "filter_dp": "동적 프로그래밍",
+    "filter_tree": "트리",
+    "filter_search": "탐색"
+  },
+  "errors": {
+    "login_required": "새 애니메이션을 생성하려면 로그인하세요",
+    "rate_limited": "요청이 너무 많습니다 — 한 시간 후에 다시 시도해주세요",
+    "generation_failed": "생성에 실패했습니다. 다시 시도해주세요.",
+    "not_found": "애니메이션을 찾을 수 없습니다"
+  },
+  "meta": {
+    "title": "GIFPT — 알고리즘 애니메이션",
+    "description": "60초 안에 모든 알고리즘을 애니메이션으로. Manim 기반."
+  }
+}
