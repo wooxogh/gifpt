@@ -17,7 +17,11 @@ export default function Hero() {
   }
 
   return (
-    <section className="flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-16">
+    {/* F-003: min-h로 viewport 채우기, pt-24 pb-16 제거 */}
+    <section
+      className="flex flex-col items-center justify-center px-6"
+      style={{ minHeight: 'calc(100dvh - 64px)' }}
+    >
       <div className="w-full max-w-2xl flex flex-col items-center gap-8 text-center">
         {/* 헤드라인 */}
         <h1
