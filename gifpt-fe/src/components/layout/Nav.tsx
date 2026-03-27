@@ -37,29 +37,30 @@ export default function Nav() {
         </Link>
 
         {/* 우측 액션 */}
-        <div className="flex items-center gap-2">
-          {/* 갤러리 링크 */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* 갤러리 링크 — 모바일에서 숨김 (공간 부족) */}
           <Link
             href="/gallery"
-            className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+            className="hidden sm:flex items-center h-11 px-3 text-sm rounded-lg transition-colors"
             style={{ color: 'var(--text-secondary)' }}
           >
             {t('gallery')}
           </Link>
 
-          {/* 언어 전환 */}
+          {/* 언어 전환 — 44px 터치 타겟 */}
           <div
-            className="flex items-center text-sm font-mono rounded-lg overflow-hidden"
+            className="flex items-center text-sm font-mono rounded-lg overflow-hidden h-11"
             style={{ border: '1px solid var(--border)' }}
           >
             <button
               onClick={() => switchLocale('en')}
               disabled={isPending}
-              className="px-3 py-1.5 transition-colors"
+              className="px-3 h-full transition-colors"
               style={{
                 background: locale === 'en' ? 'var(--accent)' : 'transparent',
                 color: locale === 'en' ? 'white' : 'var(--text-secondary)',
                 cursor: locale === 'en' ? 'default' : 'pointer',
+                minWidth: '44px',
               }}
             >
               EN
@@ -67,30 +68,31 @@ export default function Nav() {
             <button
               onClick={() => switchLocale('ko')}
               disabled={isPending}
-              className="px-3 py-1.5 transition-colors"
+              className="px-3 h-full transition-colors"
               style={{
                 background: locale === 'ko' ? 'var(--accent)' : 'transparent',
                 color: locale === 'ko' ? 'white' : 'var(--text-secondary)',
                 cursor: locale === 'ko' ? 'default' : 'pointer',
+                minWidth: '44px',
               }}
             >
               KO
             </button>
           </div>
 
-          {/* 로그인 */}
+          {/* 로그인 — 모바일에서 숨김 */}
           <Link
             href="/login"
-            className="px-4 py-1.5 text-sm rounded-lg transition-colors"
+            className="hidden sm:flex items-center h-11 px-4 text-sm rounded-lg transition-colors"
             style={{ color: 'var(--text-secondary)' }}
           >
             {t('login')}
           </Link>
 
-          {/* 회원가입 */}
+          {/* 회원가입 — 항상 노출, 44px 터치 타겟 */}
           <Link
             href="/signup"
-            className="px-4 py-1.5 text-sm rounded-lg font-medium transition-colors"
+            className="flex items-center h-11 px-4 text-sm rounded-lg font-medium transition-colors"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
             {t('signup')}
