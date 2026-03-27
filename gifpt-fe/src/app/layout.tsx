@@ -1,9 +1,29 @@
-// next-intl 미들웨어가 /로 오는 요청을 [locale]로 리다이렉트함
-// 이 layout은 [locale]/layout.tsx가 대신함
-export default function RootLayout({
+import { Geist, Geist_Mono } from 'next/font/google'
+import { getLocale } from 'next-intl/server'
+import './globals.css'
+
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+})
+
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return children
+  const locale = await getLocale()
+
+  return (
+    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-base text-primary">
+        {children}
+      </body>
+    </html>
+  )
 }
