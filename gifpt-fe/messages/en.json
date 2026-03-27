@@ -9,7 +9,16 @@
     "subtitle": "Type an algorithm name. Get a Manim animation in under 60 seconds.",
     "placeholder": "e.g. bubble sort, dijkstra, binary search tree...",
     "cta": "Animate",
-    "hint": "No login required for cached animations"
+    "animating": "Animating...",
+    "hint": "No login required for cached animations",
+    "status_loading": "Checking cache...",
+    "status_pending": "Queued — generating your animation...",
+    "status_running": "Rendering animation...",
+    "cached": "Cached",
+    "try_another": "Try another algorithm",
+    "try_again": "Try again",
+    "login": "Log in",
+    "cancel": "Cancel"
   },
   "status": {
     "processing": "Processing",
