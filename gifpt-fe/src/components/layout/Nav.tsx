@@ -24,8 +24,10 @@ export default function Nav() {
   return (
     <header
       style={{
-        background: 'var(--bg-surface)',
+        background: 'rgba(8, 8, 15, 0.75)',
         borderBottom: '1px solid var(--border)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
       }}
       className="fixed top-0 left-0 right-0 z-50 h-16"
     >

@@ -2,18 +2,19 @@
 
 /* ── GIFPT Design Tokens ───────────────────────────────────────── */
 :root {
-  --bg-base:     #0a0a0f;
-  --bg-surface:  #13131a;
-  --bg-elevated: #1c1c26;
-  --border:      #2a2a3a;
+  --bg-base:     #08080f;
+  --bg-surface:  #10101a;
+  --bg-elevated: #181824;
+  --border:      #ffffff0f;
+  --border-strong: #ffffff1a;
 
   --accent:      #7c6af7;
   --accent-hover:#9585f8;
-  --accent-glow: rgba(124, 106, 247, 0.15);
+  --accent-glow: rgba(124, 106, 247, 0.18);
 
-  --text-primary:   #f0f0f5;
-  --text-secondary: #8888aa;
-  --text-muted:     #555577;
+  --text-primary:   #f2f2f8;
+  --text-secondary: #7b7b9a;
+  --text-muted:     #44445a;
 
   --success: #4ade80;
   --error:   #f87171;
@@ -38,9 +39,9 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  --radius-card:   12px;
-  --radius-canvas: 16px;
-  --radius-input:  12px;
+  --radius-card:   16px;
+  --radius-canvas: 20px;
+  --radius-input:  14px;
 }
 
 /* ── Base ──────────────────────────────────────────────────────── */
@@ -49,17 +50,17 @@
 }
 
 html {
-  /* F-005: 브라우저 스크롤바/폼 dark 모드로 */
   color-scheme: dark;
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  /* F-008: flat solid 대신 subtle radial gradient — cinematic depth */
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124, 106, 247, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 100% 60% at 50% -5%, rgba(124, 106, 247, 0.12) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 30% at 80% 100%, rgba(124, 106, 247, 0.05) 0%, transparent 60%),
     var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
@@ -67,8 +68,15 @@ body {
 
 /* ── Typography ────────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-  /* F-004: subtitle 줄바꿈 균형 */
   text-wrap: balance;
+}
+
+/* ── Gradient text ─────────────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(135deg, #a78bfa 0%, #7c6af7 40%, #60a5fa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* ── Focus ring ────────────────────────────────────────────────── */
