@@ -19,7 +19,7 @@ jobs:
         include:
           - name: spring
             context: GIFPT_BE
-            dockerfile: GIFPT_+BE/Dockerfile
+            dockerfile: GIFPT_BE/Dockerfile
             image: ehho/gifpt-spring
           - name: django
             context: GIFPT_AI
