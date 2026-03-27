@@ -1,0 +1,71 @@
+name: Deploy to EC2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'docker-compose.yml'
+      - 'nginx/**'
+      - '.github/workflows/**'
+
+concurrency:
+  group: deploy-ec2-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: SSH into EC2 & Deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 600s
+          command_timeout: 600s
+          script: |
+            set -euxo pipefail
+            cd ~/GIFPT-server
+            mkdir -p shared/uploads shared/results data/mysql nginx/conf.d nginx/certbot/www nginx/letsencrypt
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            # ---- 여기부터 헬스체크 로직 ----
+            success=false
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost/healthz >/dev/null 2>&1; then
+                echo "App is healthy via nginx (:80/healthz)"
+                success=true
+                break
+              fi
+              echo "Waiting app... ($i)"
+              sleep 2
+            done
+
+            if [ "$success" != "true" ]; then
+              echo "WARNING: App did not become healthy in time, continuing anyway"
+            fi
+
+            docker image prune -af || true
+
+      - name: Print running containers
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            docker compose ps
+            docker logs gifpt-server-spring-1 --tail=50 || true
+            docker logs gifpt-server-django-1 --tail=50 || true

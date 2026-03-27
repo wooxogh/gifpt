@@ -1,0 +1,114 @@
+services:
+  redis:
+    image: redis:7
+    container_name: gifpt-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  spring:
+    image: ehho/gifpt-spring:latest   # ✅ GitHub Actions가 밀어준 이미지 사용
+    platform: linux/amd64
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://host.docker.internal:3306/gifpt?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+
+      GIFPT_UPLOAD_DIR: /data/uploads
+      GIFPT_RESULT_DIR: /data/results
+
+      GIFPT_JWT_SECRET: ${GIFPT_JWT_SECRET}
+
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ap-northeast-2
+      GIFPT_S3_BUCKET: gifpt-s3
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+    volumes:
+      - ./shared/uploads:/data/uploads
+      - ./shared/results:/data/results
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  django:
+    build:
+      context: ./GIFPT_AI
+      dockerfile: Dockerfile
+    image: ehho/gifpt-django:latest   # ✅ AI 웹 서버
+    platform: linux/amd64
+    environment:
+      DJANGO_DEBUG: "0"
+      REDIS_URL: redis://redis:6379/0
+      SPRING_CALLBACK_BASE: http://spring:8080
+      GIFPT_UPLOAD_DIR: /data/uploads
+      GIFPT_RESULT_DIR: /data/results
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_QUEUE: gifpt.default
+    volumes:
+      - ./GIFPT_AI:/app
+      - ./shared/uploads:/data/uploads
+      - ./shared/results:/data/results
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    command: bash -lc "python manage.py migrate && gunicorn GIFPT_AI.wsgi:application --bind 0.0.0.0:8000"
+
+  worker:
+    build:
+      context: ./GIFPT_AI
+      dockerfile: Dockerfile
+    image: ehho/gifpt-worker:latest
+    platform: linux/amd64
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      SPRING_CALLBACK_BASE: http://spring:8080
+
+      GIFPT_UPLOAD_DIR: /data/uploads
+      GIFPT_RESULT_DIR: /data/results
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+
+      CELERY_QUEUE: gifpt.default
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ap-northeast-2
+
+    volumes:
+      - ./GIFPT_AI:/app
+      - ./shared/uploads:/data/uploads
+      - ./shared/results:/data/results
+
+    depends_on:
+      - redis
+      - django
+
+    restart: unless-stopped
+    command: celery -A GIFPT_AI worker -l info -Q gifpt.default --concurrency=1
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: gifpt-server-nginx
+    depends_on:
+      - spring
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
