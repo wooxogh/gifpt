@@ -17,7 +17,6 @@ export default function Hero() {
   }
 
   return (
-    {/* F-003: min-h로 viewport 채우기, pt-24 pb-16 제거 */}
     <section
       className="flex flex-col items-center justify-center px-6"
       style={{ minHeight: 'calc(100dvh - 64px)' }}
