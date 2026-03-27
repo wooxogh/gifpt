@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd gifpt-fe && npm run build",
-  "devCommand": "cd gifpt-fe && npm run dev",
-  "installCommand": "cd gifpt-fe && npm install",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": "gifpt-fe/.next"
+  "outputDirectory": ".next"
 }
