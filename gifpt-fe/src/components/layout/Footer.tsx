@@ -1,6 +1,8 @@
 'use client'
 
 export default function Footer() {
+  const year = new Date().getFullYear()
+
   return (
     <footer
       className="w-full py-12"
@@ -14,23 +16,21 @@ export default function Footer() {
           className="text-xs uppercase tracking-widest"
           style={{ fontFamily: 'var(--font-inter)', color: 'var(--text-muted)' }}
         >
-          © 2024 GIFPT Celestial Workshop. All rights reserved.
+          © {year} GIFPT Celestial Workshop. All rights reserved.
         </div>
         <div
           className="flex items-center space-x-8 text-xs uppercase tracking-widest"
           style={{ fontFamily: 'var(--font-inter)' }}
         >
-          {['Docs', 'Github', 'Discord'].map((link) => (
-            <a
+          {['Docs', 'GitHub', 'Discord'].map((link) => (
+            <button
               key={link}
-              href="#"
-              className="transition-colors duration-200"
+              type="button"
+              className="bg-transparent border-0 p-0 transition-colors duration-200 hover:text-secondary focus-visible:text-secondary cursor-pointer"
               style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--secondary)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
             >
               {link}
-            </a>
+            </button>
           ))}
         </div>
       </div>

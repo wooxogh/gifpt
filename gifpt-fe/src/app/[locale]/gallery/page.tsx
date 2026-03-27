@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Nav from '@/components/layout/Nav'
 import Footer from '@/components/layout/Footer'
 
@@ -8,29 +9,52 @@ const FILTERS = ['Trending', 'New', 'Most Viewed'] as const
 type Filter = (typeof FILTERS)[number]
 
 const MOCK_CARDS = [
-  { id: 1, title: 'Bubble Sort Visualization', views: '12.4K', duration: '2:34', gradient: 'linear-gradient(135deg, #1a1a3e 0%, #3d1a78 50%, #6f00be 100%)' },
-  { id: 2, title: 'Dijkstra\'s Algorithm', views: '8.7K', duration: '3:12', gradient: 'linear-gradient(135deg, #0d2137 0%, #0a4f7a 50%, #0083ff 100%)' },
-  { id: 3, title: 'Merge Sort in Action', views: '6.2K', duration: '1:58', gradient: 'linear-gradient(135deg, #1a2e1a 0%, #1a5c2e 50%, #00be6f 100%)' },
-  { id: 4, title: 'A* Pathfinding', views: '15.1K', duration: '4:05', gradient: 'linear-gradient(135deg, #2e1a1a 0%, #7a1a0a 50%, #ff5500 100%)' },
-  { id: 5, title: 'Binary Search Tree', views: '5.3K', duration: '2:47', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #4a1a7a 50%, #c0c1ff 100%)' },
-  { id: 6, title: 'Heap Sort Breakdown', views: '3.8K', duration: '3:29', gradient: 'linear-gradient(135deg, #2e2a1a 0%, #7a6a0a 50%, #ffd700 100%)' },
-  { id: 7, title: 'BFS & DFS Compared', views: '9.9K', duration: '5:01', gradient: 'linear-gradient(135deg, #1a2e2e 0%, #0a5a7a 50%, #00d4ff 100%)' },
-  { id: 8, title: 'Quick Sort Deep Dive', views: '11.2K', duration: '3:55', gradient: 'linear-gradient(135deg, #2e1a2e 0%, #6a0a7a 50%, #dd00ff 100%)' },
+  { id: 1, title: 'Bubble Sort Visualization', views: '12.4K', duration: '2:34', gradient: 'var(--gallery-card-gradient-1)' },
+  { id: 2, title: 'Dijkstra\'s Algorithm', views: '8.7K', duration: '3:12', gradient: 'var(--gallery-card-gradient-2)' },
+  { id: 3, title: 'Merge Sort in Action', views: '6.2K', duration: '1:58', gradient: 'var(--gallery-card-gradient-3)' },
+  { id: 4, title: 'A* Pathfinding', views: '15.1K', duration: '4:05', gradient: 'var(--gallery-card-gradient-4)' },
+  { id: 5, title: 'Binary Search Tree', views: '5.3K', duration: '2:47', gradient: 'var(--gallery-card-gradient-5)' },
+  { id: 6, title: 'Heap Sort Breakdown', views: '3.8K', duration: '3:29', gradient: 'var(--gallery-card-gradient-6)' },
+  { id: 7, title: 'BFS & DFS Compared', views: '9.9K', duration: '5:01', gradient: 'var(--gallery-card-gradient-7)' },
+  { id: 8, title: 'Quick Sort Deep Dive', views: '11.2K', duration: '3:55', gradient: 'var(--gallery-card-gradient-8)' },
 ]
 
+function parseViews(views: string): number {
+  const trimmed = views.trim().toUpperCase()
+
+  if (trimmed.endsWith('K')) {
+    const value = Number.parseFloat(trimmed.slice(0, -1))
+    return Number.isNaN(value) ? 0 : value * 1_000
+  }
+
+  const value = Number.parseFloat(trimmed)
+  return Number.isNaN(value) ? 0 : value
+}
+
 export default function GalleryPage() {
+  const t = useTranslations('gallery')
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<Filter>('Trending')
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
 
-  const filtered = MOCK_CARDS.filter((c) =>
-    c.title.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = MOCK_CARDS
+    .filter((c) => c.title.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (activeFilter === 'Most Viewed') {
+        return parseViews(b.views) - parseViews(a.views)
+      }
+
+      if (activeFilter === 'New') {
+        return b.id - a.id
+      }
+
+      return 0
+    })
 
   return (
     <>
       <Nav />
-      <main className="flex flex-1 flex-col pt-20">
+      <main className="flex flex-1 flex-col">
         {/* ── Header ── */}
         <section className="relative pt-20 pb-16 px-8 text-center overflow-hidden">
           {/* Background glow */}
@@ -54,21 +78,21 @@ export default function GalleryPage() {
                 className="w-1.5 h-1.5 rounded-full"
                 style={{ background: 'var(--primary)', boxShadow: '0 0 6px var(--primary)' }}
               />
-              <span>Community Gallery</span>
+              <span>{t('header_badge')}</span>
             </div>
 
             <h1
               className="text-5xl md:text-7xl font-black tracking-tighter mb-6"
               style={{ fontFamily: 'var(--font-manrope)' }}
             >
-              Algorithm{' '}
-              <span className="hero-text-gradient">Artistry</span>
+              {t('header_title_prefix')}{' '}
+              <span className="hero-text-gradient">{t('header_title_highlight')}</span>
             </h1>
             <p
               className="text-lg max-w-xl mx-auto mb-12"
               style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}
             >
-              Browse algorithm visualizations created by the community. Watch, learn, and get inspired.
+              {t('subtitle')}
             </p>
 
             {/* Search */}
@@ -89,7 +113,7 @@ export default function GalleryPage() {
                 </span>
                 <input
                   type="text"
-                  placeholder="Search algorithms..."
+                  placeholder={t('search_placeholder')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full bg-transparent pl-11 pr-4 py-3 text-sm outline-none"
@@ -109,7 +133,7 @@ export default function GalleryPage() {
                     activeFilter === f
                       ? {
                           background: 'var(--primary)',
-                          color: '#0d0096',
+                          color: 'var(--on-primary)',
                           fontFamily: 'var(--font-space-grotesk)',
                         }
                       : {
@@ -120,7 +144,11 @@ export default function GalleryPage() {
                         }
                   }
                 >
-                  {f}
+                  {f === 'Trending'
+                    ? t('filter_trending')
+                    : f === 'New'
+                      ? t('filter_new')
+                      : t('filter_most_viewed')}
                 </button>
               ))}
             </div>
@@ -134,7 +162,7 @@ export default function GalleryPage() {
               className="text-center py-24"
               style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}
             >
-              No results for &ldquo;{search}&rdquo;
+              {t('no_results', { query: search })}
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -209,7 +237,7 @@ export default function GalleryPage() {
                     className="text-xs"
                     style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}
                   >
-                    {card.views} views
+                    {card.views} {t('views_suffix')}
                   </p>
                 </div>
               ))}
@@ -236,7 +264,7 @@ export default function GalleryPage() {
                   e.currentTarget.style.color = 'var(--text-secondary)'
                 }}
               >
-                View More Animations
+                {t('load_more')}
               </button>
             </div>
           )}

@@ -53,7 +53,7 @@ npx vitest run src/test/routing.test.ts
 3. 401 → login_required state
 4. 202 → job dispatched, poll `GET /api/v1/animate/status/{jobId}` every 3s (max 20 polls)
 
-**Styling:** Tailwind v4 with CSS custom properties. Design tokens in `src/app/globals.css`. No hardcoded hex values in components — use `var(--accent)`, `var(--text-primary)` etc. See `DESIGN.md` for the full design system.
+**Styling:** Tailwind v4 with CSS custom properties. Design tokens live in `src/app/globals.css`. Prefer CSS variables (e.g. `var(--accent)`, `var(--text-primary)`) over raw hex values in production components; direct hex usage is acceptable when defining new tokens or in clearly marked mock/demo styles. See `DESIGN.md` for the full design system.
 
 **i18n messages:** `messages/en.json` only. Namespaces: `nav`, `hero`, `auth`, `status`, `canvas`, `gallery`, `errors`, `meta`.
 

@@ -30,9 +30,9 @@ export default function LoginPage() {
   }
 
   const inputBase: React.CSSProperties = {
-    background: '#0e0e0e',
-    border: '1px solid rgba(70,69,84,0.15)',
-    borderRadius: '0.75rem',
+    background: 'var(--bg-lowest)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-input)',
     color: 'var(--text-primary)',
     fontFamily: 'var(--font-inter)',
   }
@@ -42,7 +42,7 @@ export default function LoginPage() {
     e.currentTarget.style.boxShadow = '0 0 0 1px var(--primary)'
   }
   function onBlur(e: React.FocusEvent<HTMLInputElement>) {
-    e.currentTarget.style.borderColor = 'rgba(70,69,84,0.15)'
+    e.currentTarget.style.borderColor = 'var(--border)'
     e.currentTarget.style.boxShadow = 'none'
   }
 
@@ -97,10 +97,10 @@ export default function LoginPage() {
               className="text-3xl font-extrabold tracking-tight mb-2"
               style={{ fontFamily: 'var(--font-manrope)', color: 'var(--text-primary)' }}
             >
-              Welcome Back
+              {t('login_welcome')}
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}>
-              Sign in to continue your celestial journey.
+              {t('login_subtitle')}
             </p>
           </div>
 
@@ -111,7 +111,7 @@ export default function LoginPage() {
                 className="block text-xs uppercase tracking-widest font-medium ml-1"
                 style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
               >
-                Email Address
+                {t('login_email_label')}
               </label>
               <div className="relative group">
                 <span
@@ -124,7 +124,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@cosmic.ai"
+                  placeholder={t('login_email_placeholder')}
                   required
                   className="w-full py-3.5 pl-12 pr-4 text-sm outline-none transition-all"
                   style={inputBase}
@@ -138,20 +138,20 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center px-1">
                 <label
-                  className="text-xs uppercase tracking-widest font-medium"
-                  style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
-                >
-                  Password
+                className="text-xs uppercase tracking-widest font-medium"
+                style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
+              >
+                  {t('login_password_label')}
                 </label>
-                <a
-                  href="#"
+                <button
+                  type="button"
                   className="text-xs font-medium transition-colors"
-                  style={{ color: 'var(--primary)' }}
+                  style={{ color: 'var(--primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--secondary)' }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
                 >
-                  Forgot Password?
-                </a>
+                  {t('forgot_password')}
+                </button>
               </div>
               <div className="relative group">
                 <span
@@ -164,7 +164,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder={t('login_password_placeholder')}
                   required
                   className="w-full py-3.5 pl-12 pr-12 text-sm outline-none transition-all"
                   style={inputBase}
@@ -196,15 +196,15 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-4 rounded-lg font-extrabold transition-all duration-300 active:scale-95"
               style={{
-                background: 'linear-gradient(135deg, #c0c1ff 0%, #8083ff 100%)',
-                color: '#0d0096',
+                background: 'var(--button-gradient)',
+                color: 'var(--on-primary)',
                 fontFamily: 'var(--font-manrope)',
                 opacity: loading ? 0.7 : 1,
                 cursor: loading ? 'not-allowed' : 'pointer',
                 boxShadow: loading ? 'none' : '0 0 24px rgba(192,193,255,0.2)',
               }}
             >
-              {loading ? t('logging_in') : 'Log In'}
+              {loading ? t('logging_in') : t('login_submit')}
             </button>
           </form>
 
@@ -218,7 +218,7 @@ export default function LoginPage() {
                 onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--secondary)' }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
               >
-                Sign Up
+                {t('signup_link')}
               </Link>
             </p>
           </div>
@@ -241,7 +241,7 @@ export default function LoginPage() {
             className="text-xs uppercase tracking-tighter"
             style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
           >
-            Trusted by creators at
+            {t('login_trust_signal')}
           </span>
           <div className="flex space-x-4" style={{ color: 'var(--text-muted)' }}>
             <span className="material-symbols-outlined text-xl">blur_on</span>

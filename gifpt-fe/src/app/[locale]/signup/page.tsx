@@ -119,7 +119,7 @@ export default function SignupPage() {
                 className="text-sm md:text-base"
                 style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}
               >
-                Start animating your algorithms today.
+                {t('signup_subtitle')}
               </p>
             </div>
 
@@ -221,7 +221,7 @@ export default function SignupPage() {
                 className="w-full py-4 rounded-lg font-extrabold transition-all duration-300 active:scale-[0.98] mt-4"
                 style={{
                   background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
-                  color: '#0d0096',
+                  color: 'var(--on-primary)',
                   fontFamily: 'var(--font-manrope)',
                   opacity: loading ? 0.7 : 1,
                   cursor: loading ? 'not-allowed' : 'pointer',
@@ -241,7 +241,7 @@ export default function SignupPage() {
                   className="px-4"
                   style={{ background: 'rgba(28, 27, 27, 0.95)', color: 'var(--text-muted)' }}
                 >
-                  Or continue with
+                  {t('or_continue_with')}
                 </span>
               </div>
             </div>
@@ -284,7 +284,7 @@ export default function SignupPage() {
                   className="text-xs font-medium"
                   style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-space-grotesk)' }}
                 >
-                  Github
+                  GitHub
                 </span>
               </button>
             </div>
@@ -294,13 +294,13 @@ export default function SignupPage() {
               style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}
             >
               By joining, you agree to our{' '}
-              <a className="text-primary hover:underline underline-offset-4" href="#">
+              <button type="button" className="text-primary hover:underline underline-offset-4">
                 Terms of Service
-              </a>{' '}
+              </button>{' '}
               and{' '}
-              <a className="text-primary hover:underline underline-offset-4" href="#">
+              <button type="button" className="text-primary hover:underline underline-offset-4">
                 Privacy Policy
-              </a>
+              </button>
               .
             </p>
           </div>

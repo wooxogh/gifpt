@@ -7,6 +7,8 @@
   --bg-surface:         #1c1b1b;
   --bg-elevated:        #2a2a2a;
   --bg-highest:         #353534;
+  --nav-bg:             rgba(19, 19, 19, 0.6);
+  --nav-shadow:         rgba(128, 131, 255, 0.08);
   --border:             rgba(70, 69, 84, 0.15);
   --border-strong:      rgba(70, 69, 84, 0.3);
 
@@ -14,6 +16,8 @@
   --primary-container:  #8083ff;
   --secondary:          #ddb7ff;
   --secondary-container:#6f00be;
+  --on-primary:         #0d0096;
+  --button-gradient:    linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 
   --accent:             #8083ff;
   --accent-hover:       #c0c1ff;
@@ -26,6 +30,15 @@
   --success: #4ade80;
   --error:   #ffb4ab;
   --warning: #fbbf24;
+
+  --gallery-card-gradient-1: linear-gradient(135deg, rgb(192 193 255 / 0.10) 0%, rgb(128 131 255 / 0.30) 55%, rgb(111 0 190 / 0.70) 100%);
+  --gallery-card-gradient-2: linear-gradient(135deg, rgb(13 33 55 / 0.95) 0%, rgb(10 79 122 / 0.92) 50%, rgb(128 131 255 / 0.70) 100%);
+  --gallery-card-gradient-3: linear-gradient(135deg, rgb(26 46 26 / 0.95) 0%, rgb(26 92 46 / 0.92) 50%, rgb(74 222 128 / 0.72) 100%);
+  --gallery-card-gradient-4: linear-gradient(135deg, rgb(46 26 26 / 0.95) 0%, rgb(122 26 10 / 0.92) 50%, rgb(251 191 36 / 0.70) 100%);
+  --gallery-card-gradient-5: linear-gradient(135deg, rgb(26 26 46 / 0.95) 0%, rgb(74 26 122 / 0.92) 50%, rgb(221 183 255 / 0.78) 100%);
+  --gallery-card-gradient-6: linear-gradient(135deg, rgb(46 42 26 / 0.95) 0%, rgb(122 106 10 / 0.92) 50%, rgb(251 191 36 / 0.78) 100%);
+  --gallery-card-gradient-7: linear-gradient(135deg, rgb(26 46 46 / 0.95) 0%, rgb(10 90 122 / 0.92) 50%, rgb(34 211 238 / 0.78) 100%);
+  --gallery-card-gradient-8: linear-gradient(135deg, rgb(46 26 46 / 0.95) 0%, rgb(106 10 122 / 0.92) 50%, rgb(221 0 255 / 0.78) 100%);
 }
 
 /* ── Tailwind v4 theme mapping ─────────────────────────────────── */
@@ -73,14 +86,14 @@ h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
 
 /* ── Gradient utilities ────────────────────────────────────────── */
 .hero-text-gradient {
-  background: linear-gradient(to right, #c0c1ff, #ddb7ff);
+  background: linear-gradient(to right, var(--primary), var(--secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .action-gradient {
-  background: linear-gradient(135deg, #c0c1ff 0%, #8083ff 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 }
 
 /* ── Material Symbols ──────────────────────────────────────────── */

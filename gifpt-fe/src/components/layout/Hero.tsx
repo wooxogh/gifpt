@@ -44,8 +44,8 @@ export default function Hero() {
           />
           {/* Decorative SVG lines */}
           <svg className="absolute top-0 left-0 w-full h-full opacity-10" preserveAspectRatio="none" viewBox="0 0 1000 1000">
-            <path d="M0,500 Q250,400 500,500 T1000,500" fill="transparent" stroke="#c0c1ff" strokeWidth="0.5" />
-            <path d="M0,300 Q250,600 500,300 T1000,300" fill="transparent" stroke="#ddb7ff" strokeWidth="0.5" />
+            <path d="M0,500 Q250,400 500,500 T1000,500" fill="transparent" stroke="var(--primary)" strokeWidth="0.5" />
+            <path d="M0,300 Q250,600 500,300 T1000,300" fill="transparent" stroke="var(--secondary)" strokeWidth="0.5" />
           </svg>
         </div>
 
@@ -84,7 +84,7 @@ export default function Hero() {
             className="text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed"
             style={{ color: 'var(--text-secondary)' }}
           >
-            Transform complex logic into breathtaking cinematic animations using our AI-driven celestial engine.
+            {t('subtitle')}
           </p>
 
           {/* Input */}
@@ -109,7 +109,7 @@ export default function Hero() {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="bubble sort, dijkstra, neural network..."
+                  placeholder={t('placeholder')}
                   disabled={isSubmitting}
                   className="w-full bg-transparent border-none outline-none py-4 text-base"
                   style={{
@@ -124,7 +124,7 @@ export default function Hero() {
                 className="action-gradient font-black px-8 py-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-300 active:scale-95 group/btn"
                 style={{
                   fontFamily: 'var(--font-manrope)',
-                  color: '#0d0096',
+                  color: 'var(--on-primary)',
                   boxShadow: isSubmitting ? 'none' : '0 0 24px rgba(128,131,255,0.2)',
                   opacity: isSubmitting ? 0.7 : 1,
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
@@ -153,7 +153,7 @@ export default function Hero() {
               className="text-xs uppercase tracking-wider self-center mr-2"
               style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--text-muted)' }}
             >
-              Quick Start:
+              {t('quick_start')}
             </span>
             {CHIPS.map((chip) => (
               <button
