@@ -49,15 +49,26 @@
 }
 
 html {
+  /* F-005: 브라우저 스크롤바/폼 dark 모드로 */
+  color-scheme: dark;
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 body {
-  background: var(--bg-base);
+  /* F-008: flat solid 대신 subtle radial gradient — cinematic depth */
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124, 106, 247, 0.08) 0%, transparent 70%),
+    var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
+}
+
+/* ── Typography ────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  /* F-004: subtitle 줄바꿈 균형 */
+  text-wrap: balance;
 }
 
 /* ── Focus ring ────────────────────────────────────────────────── */
