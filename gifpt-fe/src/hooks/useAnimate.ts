@@ -15,11 +15,13 @@ export type AnimateState =
 const POLL_INTERVAL_MS = 3000
 const MAX_POLLS = 20 // 최대 1분 (20 × 3초)
 
-export function useAnimate() {
+export function useAnimate(token?: string | null) {
   const [state, setState] = useState<AnimateState>({ phase: 'idle' })
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollCount = useRef(0)
   const isMountedRef = useRef(true)
+  const tokenRef = useRef(token)
+  tokenRef.current = token
 
   // Cleanup on unmount
   useEffect(() => {
@@ -55,7 +57,7 @@ export function useAnimate() {
       pollCount.current++
 
       try {
-        const job = await fetchJobStatus(jobId)
+        const job = await fetchJobStatus(jobId, tokenRef.current)
         
         if (!isMountedRef.current) return // Guard after async operation
         
@@ -82,7 +84,7 @@ export function useAnimate() {
     setState({ phase: 'loading' })
 
     try {
-      const { status, data } = await fetchAnimate(algorithm)
+      const { status, data } = await fetchAnimate(algorithm, tokenRef.current)
 
       if (!isMountedRef.current) return // Guard after async operation
 
