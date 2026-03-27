@@ -2,7 +2,8 @@
   "nav": {
     "gallery": "Gallery",
     "login": "Log in",
-    "signup": "Sign up"
+    "signup": "Sign up",
+    "logout": "Log out"
   },
   "hero": {
     "title": "Animate any algorithm",
@@ -42,6 +43,22 @@
     "filter_dp": "Dynamic Programming",
     "filter_tree": "Tree",
     "filter_search": "Search"
+  },
+  "auth": {
+    "login_title": "Log in",
+    "signup_title": "Sign up",
+    "email": "Email",
+    "password": "Password",
+    "display_name": "Display name",
+    "logging_in": "Logging in...",
+    "signing_up": "Signing up...",
+    "invalid_credentials": "Invalid email or password",
+    "email_taken": "This email is already registered",
+    "signup_failed": "Sign up failed. Please try again.",
+    "no_account": "Don't have an account?",
+    "have_account": "Already have an account?",
+    "signup_link": "Sign up",
+    "login_link": "Log in"
   },
   "errors": {
     "login_required": "Log in to generate new animations",

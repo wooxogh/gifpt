@@ -4,12 +4,15 @@ import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAnimate } from '@/hooks/useAnimate'
+import { useAuth } from '@/context/AuthContext'
 
 export default function Hero() {
   const t = useTranslations('hero')
   const te = useTranslations('errors')
+  const { auth } = useAuth()
   const [input, setInput] = useState('')
-  const { state, animate, reset } = useAnimate()
+  const token = auth.status === 'authenticated' ? auth.token : null
+  const { state, animate, reset } = useAnimate(token)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

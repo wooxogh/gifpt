@@ -3,6 +3,7 @@
 import { useTranslations, useLocale } from 'next-intl'
 import { usePathname, useRouter, Link } from '@/i18n/navigation'
 import { useTransition } from 'react'
+import { useAuth } from '@/context/AuthContext'
 
 export default function Nav() {
   const t = useTranslations('nav')
@@ -10,6 +11,7 @@ export default function Nav() {
   const router = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
+  const { auth, logout } = useAuth()
 
   function switchLocale(next: 'en' | 'ko') {
     startTransition(() => {
@@ -80,23 +82,43 @@ export default function Nav() {
             </button>
           </div>
 
-          {/* 로그인 — 모바일에서 숨김 */}
-          <Link
-            href="/login"
-            className="hidden sm:flex items-center h-11 px-4 text-sm rounded-lg transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {t('login')}
-          </Link>
+          {auth.status === 'authenticated' ? (
+            <>
+              <span
+                className="hidden sm:flex items-center h-11 px-3 text-sm"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {auth.email}
+              </span>
+              <button
+                onClick={() => logout().then(() => router.push('/'))}
+                className="flex items-center h-11 px-4 text-sm rounded-lg font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+              >
+                {t('logout')}
+              </button>
+            </>
+          ) : (
+            <>
+              {/* 로그인 — 모바일에서 숨김 */}
+              <Link
+                href="/login"
+                className="hidden sm:flex items-center h-11 px-4 text-sm rounded-lg transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {t('login')}
+              </Link>
 
-          {/* 회원가입 — 항상 노출, 44px 터치 타겟 */}
-          <Link
-            href="/signup"
-            className="flex items-center h-11 px-4 text-sm rounded-lg font-medium transition-colors"
-            style={{ background: 'var(--accent)', color: 'white' }}
-          >
-            {t('signup')}
-          </Link>
+              {/* 회원가입 — 항상 노출, 44px 터치 타겟 */}
+              <Link
+                href="/signup"
+                className="flex items-center h-11 px-4 text-sm rounded-lg font-medium transition-colors"
+                style={{ background: 'var(--accent)', color: 'white' }}
+              >
+                {t('signup')}
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

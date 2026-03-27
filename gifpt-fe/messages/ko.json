@@ -2,7 +2,8 @@
   "nav": {
     "gallery": "갤러리",
     "login": "로그인",
-    "signup": "회원가입"
+    "signup": "회원가입",
+    "logout": "로그아웃"
   },
   "hero": {
     "title": "모든 알고리즘을 애니메이션으로",
@@ -42,6 +43,22 @@
     "filter_dp": "동적 프로그래밍",
     "filter_tree": "트리",
     "filter_search": "탐색"
+  },
+  "auth": {
+    "login_title": "로그인",
+    "signup_title": "회원가입",
+    "email": "이메일",
+    "password": "비밀번호",
+    "display_name": "닉네임",
+    "logging_in": "로그인 중...",
+    "signing_up": "가입 중...",
+    "invalid_credentials": "이메일 또는 비밀번호가 올바르지 않아요",
+    "email_taken": "이미 가입된 이메일이에요",
+    "signup_failed": "회원가입에 실패했어요. 다시 시도해주세요.",
+    "no_account": "계정이 없으신가요?",
+    "have_account": "이미 계정이 있으신가요?",
+    "signup_link": "회원가입",
+    "login_link": "로그인"
   },
   "errors": {
     "login_required": "새 애니메이션을 생성하려면 로그인하세요",
