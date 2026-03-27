@@ -28,16 +28,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     apiMe(token)
       .then(({ email }) => setAuth({ status: 'authenticated', email, token }))
-      .catch(() => {
-        clearToken()
-        setAuth({ status: 'unauthenticated' })
+      .catch((err: unknown) => {
+        const isAuthError = err instanceof Error && err.message === 'unauthorized'
+        if (isAuthError) {
+          clearToken()
+          setAuth({ status: 'unauthenticated' })
+        } else {
+          // 5xx 등 일시적 오류 — 토큰 유지, 인증 상태 유지
+          setAuth({ status: 'authenticated', email: '', token })
+        }
       })
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
     const token = await apiLogin(email, password)
     setToken(token)
-    setAuth({ status: 'authenticated', email, token })
+    const me = await apiMe(token)
+    setAuth({ status: 'authenticated', email: me.email, token })
   }, [])
 
   const signup = useCallback(async (email: string, password: string, displayName: string) => {
@@ -48,8 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
-    await apiLogout()
-    setAuth({ status: 'unauthenticated' })
+    try {
+      await apiLogout()
+    } catch {
+      // 네트워크 실패해도 로컬 로그아웃은 항상 수행
+    } finally {
+      clearToken()
+      setAuth({ status: 'unauthenticated' })
+    }
   }, [])
 
   return (

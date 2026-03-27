@@ -2,7 +2,7 @@
 
 import { useTranslations, useLocale } from 'next-intl'
 import { usePathname, useRouter, Link } from '@/i18n/navigation'
-import { useTransition } from 'react'
+import { useTransition, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Nav() {
@@ -12,6 +12,17 @@ export default function Nav() {
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const { auth, logout } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  async function handleLogout() {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      router.push('/')
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   function switchLocale(next: 'en' | 'ko') {
     startTransition(() => {
@@ -91,11 +102,12 @@ export default function Nav() {
                 {auth.email}
               </span>
               <button
-                onClick={() => logout().then(() => router.push('/'))}
+                onClick={handleLogout}
+                disabled={isLoggingOut}
                 className="flex items-center h-11 px-4 text-sm rounded-lg font-medium"
-                style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', opacity: isLoggingOut ? 0.6 : 1 }}
               >
-                {t('logout')}
+                {isLoggingOut ? '...' : t('logout')}
               </button>
             </>
           ) : (

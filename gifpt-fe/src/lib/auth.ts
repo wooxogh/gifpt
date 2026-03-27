@@ -6,10 +6,12 @@ export function getToken(): string | null {
 }
 
 export function setToken(token: string) {
+  if (typeof window === 'undefined') return
   localStorage.setItem(TOKEN_KEY, token)
 }
 
 export function clearToken() {
+  if (typeof window === 'undefined') return
   localStorage.removeItem(TOKEN_KEY)
 }
 
@@ -44,11 +46,14 @@ export async function apiSignup(email: string, password: string, displayName: st
 }
 
 export async function apiLogout(): Promise<void> {
-  await fetch('/api/v1/auth/logout', {
-    method: 'POST',
-    credentials: 'include',
-  })
-  clearToken()
+  try {
+    await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    })
+  } finally {
+    clearToken()
+  }
 }
 
 export async function apiMe(token: string): Promise<{ email: string }> {
@@ -56,6 +61,9 @@ export async function apiMe(token: string): Promise<{ email: string }> {
     headers: { Authorization: `Bearer ${token}` },
     credentials: 'include',
   })
-  if (!res.ok) throw new Error('unauthorized')
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error('unauthorized')
+    throw new Error(`request_failed_${res.status}`)
+  }
   return res.json()
 }
