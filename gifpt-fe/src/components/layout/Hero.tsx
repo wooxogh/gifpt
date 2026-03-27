@@ -11,7 +11,9 @@ export default function Hero() {
     e.preventDefault()
     if (!input.trim()) return
     // TODO: animate 요청
-    console.log('animate:', input.trim())
+    if (process.env.NODE_ENV === 'development') {
+      console.log('animate:', input.trim())
+    }
   }
 
   return (

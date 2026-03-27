@@ -1,8 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useTranslations, useLocale } from 'next-intl'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, Link } from '@/i18n/navigation'
 import { useTransition } from 'react'
 
 export default function Nav() {
@@ -13,16 +12,9 @@ export default function Nav() {
   const [isPending, startTransition] = useTransition()
 
   function switchLocale(next: 'en' | 'ko') {
-    // 현재 pathname에서 locale prefix 교체
     startTransition(() => {
-      const segments = pathname.split('/')
-      if (segments[1] === 'ko' || segments[1] === 'en') {
-        segments[1] = next === 'en' ? '' : next
-        const newPath = segments.filter(Boolean).join('/') || '/'
-        router.push(next === 'en' ? `/${newPath}` : `/${next}/${newPath.replace(/^\//, '')}`)
-      } else {
-        router.push(next === 'ko' ? `/ko${pathname}` : pathname)
-      }
+      // next-intl router가 자동으로 현재 경로의 로케일만 변경
+      router.replace(pathname, { locale: next })
     })
   }
 
