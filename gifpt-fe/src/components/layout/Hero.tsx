@@ -82,8 +82,8 @@ export default function Hero() {
           </button>
         </form>
 
-        {/* 힌트 */}
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        {/* 힌트 — F-007: muted → secondary로 가시성 개선 */}
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           {t('hint')}
         </p>
       </div>
