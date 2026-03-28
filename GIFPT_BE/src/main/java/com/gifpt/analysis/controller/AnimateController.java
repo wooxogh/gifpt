@@ -131,13 +131,21 @@ public class AnimateController {
             dispatchBody.put("prompt", prompt);
         }
 
-        RestClient restClient = restClientBuilder.baseUrl(aiServerBaseUrl).build();
-        restClient.post()
-                .uri("/animate")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(dispatchBody)
-                .retrieve()
-                .toBodilessEntity();
+        try {
+            RestClient restClient = restClientBuilder.baseUrl(aiServerBaseUrl).build();
+            restClient.post()
+                    .uri("/animate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(dispatchBody)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.error("[ANIMATE] dispatch to AI server failed job_id={}: {}", job.getId(), e.getMessage());
+            job.setStatus(AnalysisStatus.FAILED);
+            analysisJobRepository.save(job);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "ai_server_unavailable", "message", "AI server is temporarily unavailable"));
+        }
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .header("X-Cache", "MISS")

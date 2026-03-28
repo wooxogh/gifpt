@@ -24,6 +24,7 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 SPRING_CALLBACK_BASE = os.environ.get("SPRING_CALLBACK_BASE", "http://spring:8080")
+CALLBACK_SECRET = os.environ.get("GIFPT_CALLBACK_SECRET", "")
 UPLOAD_DIR = os.environ.get("GIFPT_UPLOAD_DIR", "/data/uploads")
 RESULT_DIR = os.environ.get("GIFPT_RESULT_DIR", "/data/results")
 
@@ -425,11 +426,20 @@ Return JSON ONLY with keys: summary, video_instructions
     # 6) Spring callback (single exit)
     # -------------------------------------------------
     callback_url = f"{SPRING_CALLBACK_BASE}/api/v1/analysis/{job_id}/complete"
+    callback_headers = {"X-Callback-Secret": CALLBACK_SECRET} if CALLBACK_SECRET else {}
     logger.info("[CALLBACK] POST %s body=%s", callback_url, callback_body)
 
     try:
-        resp = requests.post(callback_url, json=callback_body, timeout=10)
+        resp = requests.post(callback_url, json=callback_body, headers=callback_headers, timeout=10)
         logger.info("[CALLBACK] status=%s", resp.status_code)
+    except requests.ConnectionError:
+        dead_letter_key = f"gifpt:callback:dead:{job_id}"
+        try:
+            from django.core.cache import cache
+            cache.set(dead_letter_key, json.dumps(callback_body), timeout=None)
+            logger.error("[CALLBACK] Spring unreachable — pushed to dead-letter key=%s", dead_letter_key)
+        except Exception:
+            logger.exception("[CALLBACK] failed to write dead-letter job_id=%s", job_id)
     except Exception:
         logger.exception("[CALLBACK] failed job_id=%s", job_id)
 
@@ -506,7 +516,7 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
             callback_body = {
                 "status": "SUCCESS",
                 "resultUrl": video_url,
-                "cache": "MISS",
+                "summary": f"Custom visualization: {algorithm}",
                 "errorMessage": None,
             }
 
@@ -521,7 +531,7 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
                 callback_body = {
                     "status": "SUCCESS",
                     "resultUrl": video_url,
-                    "cache": "HIT",
+                    "summary": f"Algorithm visualization: {algorithm}",
                     "errorMessage": None,
                 }
             else:
@@ -582,7 +592,7 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
                 callback_body = {
                     "status": "SUCCESS",
                     "resultUrl": video_url,
-                    "cache": "MISS",
+                    "summary": f"Algorithm visualization: {algorithm}",
                     "errorMessage": None,
                 }
 
@@ -591,7 +601,7 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
         callback_body = {
             "status": "FAILED",
             "resultUrl": None,
-            "cache": "MISS",
+            "summary": "",
             "errorMessage": str(exc),
         }
 
@@ -601,8 +611,9 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
 
     # 7) Spring callback
     callback_url = f"{SPRING_CALLBACK_BASE}/api/v1/analysis/{job_id}/complete"
+    callback_headers = {"X-Callback-Secret": CALLBACK_SECRET} if CALLBACK_SECRET else {}
     try:
-        resp = requests.post(callback_url, json=callback_body, timeout=10)
+        resp = requests.post(callback_url, json=callback_body, headers=callback_headers, timeout=10)
         logger.info("[ANIMATE_CALLBACK] status=%s job_id=%s", resp.status_code, job_id)
     except requests.ConnectionError:
         dead_letter_key = f"gifpt:callback:dead:{job_id}"

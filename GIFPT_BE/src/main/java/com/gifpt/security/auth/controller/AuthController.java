@@ -87,7 +87,7 @@ String access = jwtService.generateToken(u.getEmail(), claims);
     User user = userRepo.findByEmail(email).orElseThrow();
     Map<String, Object> claims = new HashMap<>();
     claims.put("role", "USER");
-    claims.put("name", user.getDisplayName());
+    // displayName removed from signup flow
     String access = jwtService.generateToken(user.getEmail(), claims);
     String refresh = refreshService.issue(user, 7);
 
@@ -113,7 +113,7 @@ String access = jwtService.generateToken(u.getEmail(), claims);
     var user = token.getUser();
     Map<String, Object> claims = new HashMap<>();
     claims.put("role", "USER");
-    claims.put("name", user.getDisplayName());
+    // displayName removed from signup flow
 
 String newAccess = jwtService.generateToken(user.getEmail(), claims);
     return ResponseEntity.ok(Map.of("accessToken", newAccess));

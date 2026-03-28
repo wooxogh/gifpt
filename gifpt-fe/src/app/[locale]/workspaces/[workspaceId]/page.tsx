@@ -66,6 +66,8 @@ export default function WorkspaceDetailPage({ params }: { params: Promise<{ work
         pollCount.current += 1
         if (pollCount.current < MAX_POLLS) {
           pollTimer.current = setTimeout(() => load(true), POLL_INTERVAL_MS)
+        } else {
+          setWorkspace({ ...ws, status: 'FAILED' as WorkspaceStatus })
         }
       }
     } catch {

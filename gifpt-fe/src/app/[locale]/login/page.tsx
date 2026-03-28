@@ -136,23 +136,12 @@ export default function LoginPage() {
 
             {/* Password */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center px-1">
-                <label
-                className="text-xs uppercase tracking-widest font-medium"
+              <label
+                className="block text-xs uppercase tracking-widest font-medium px-1"
                 style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
               >
-                  {t('login_password_label')}
-                </label>
-                <button
-                  type="button"
-                  className="text-xs font-medium transition-colors"
-                  style={{ color: 'var(--primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--secondary)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
-                >
-                  {t('forgot_password')}
-                </button>
-              </div>
+                {t('login_password_label')}
+              </label>
               <div className="relative group">
                 <span
                   className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg select-none transition-colors"

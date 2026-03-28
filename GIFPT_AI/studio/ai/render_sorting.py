@@ -206,27 +206,31 @@ class SortingScene(Scene, LayoutMixin):
 
     scene_code = scene_template.replace("__TRACE_JSON__", trace_json)
 
-    # 임시 파이썬 파일로 저장
+    # 임시 파이썬 파일로 저장 + 자동 정리
     tmpdir = tempfile.mkdtemp()
-    py_path = Path(tmpdir) / "sorting_scene.py"
-    py_path.write_text(scene_code, encoding="utf-8")
+    try:
+        py_path = Path(tmpdir) / "sorting_scene.py"
+        py_path.write_text(scene_code, encoding="utf-8")
 
-    # 출력 디렉토리
-    out_dir = Path("media") / "sorting"
-    out_dir.mkdir(parents=True, exist_ok=True)
+        # 출력 디렉토리
+        out_dir = Path("media") / "sorting"
+        out_dir.mkdir(parents=True, exist_ok=True)
 
-    # manim 실행 =
-    cmd = [
-        "manim",
-        str(py_path),
-        "SortingScene",
-        "-ql",
-    ]
+        # manim 실행
+        cmd = [
+            "manim",
+            str(py_path),
+            "SortingScene",
+            "-ql",
+        ]
 
-    env = os.environ.copy()
-    env["PYTHONPATH"] = PROJECT_ROOT + os.pathsep + env.get("PYTHONPATH", "")
-    subprocess.run(cmd, check=True, env=env)
-    
-    video_dir = os.path.join(PROJECT_ROOT, "media", "videos")
-    return os.path.join(video_dir, "sorting_scene", "480p15", f"{out_basename}.mp4")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = PROJECT_ROOT + os.pathsep + env.get("PYTHONPATH", "")
+        subprocess.run(cmd, check=True, env=env)
+
+        video_dir = os.path.join(PROJECT_ROOT, "media", "videos")
+        return os.path.join(video_dir, "sorting_scene", "480p15", f"{out_basename}.mp4")
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
