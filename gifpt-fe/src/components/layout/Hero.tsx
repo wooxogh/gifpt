@@ -39,8 +39,7 @@ export default function Hero() {
     state.phase === 'pending' ||
     state.phase === 'running'
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function submitAnimation() {
     if (mode === 'name') {
       const trimmed = nameInput.trim()
       if (!trimmed) return
@@ -53,18 +52,23 @@ export default function Hero() {
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    submitAnimation()
+  }
+
   function handleDescribeKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     // Ctrl/Cmd+Enter to submit in describe mode
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isSubmitting) {
       e.preventDefault()
-      handleSubmit(e)
+      submitAnimation()
     }
   }
 
   function handleNameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && !isSubmitting) {
       e.preventDefault()
-      handleSubmit(e)
+      submitAnimation()
     }
   }
 

@@ -41,6 +41,7 @@ export default function WorkspaceDetailPage({ params }: { params: Promise<{ work
   const router = useRouter()
   const { workspaceId: workspaceIdStr } = use(params)
   const workspaceId = Number(workspaceIdStr)
+  const hasValidWorkspaceId = Number.isFinite(workspaceId) && workspaceId > 0
 
   const [workspace, setWorkspace] = useState<WorkspaceDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,7 +56,7 @@ export default function WorkspaceDetailPage({ params }: { params: Promise<{ work
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async (poll = false) => {
-    if (auth.status !== 'authenticated') return
+    if (auth.status !== 'authenticated' || !hasValidWorkspaceId) return
     try {
       const ws = await fetchWorkspace(workspaceId, auth.token)
       setWorkspace(ws)
@@ -73,13 +74,18 @@ export default function WorkspaceDetailPage({ params }: { params: Promise<{ work
         setLoading(false)
       }
     }
-  }, [auth, workspaceId])
+  }, [auth, workspaceId, hasValidWorkspaceId])
 
   useEffect(() => {
     if (auth.status === 'unauthenticated') { router.push('/login'); return }
+    if (!hasValidWorkspaceId) {
+      setLoadError('Not found.')
+      setLoading(false)
+      return
+    }
     if (auth.status === 'authenticated') load()
     return () => { if (pollTimer.current) clearTimeout(pollTimer.current) }
-  }, [auth.status, load, router])
+  }, [auth.status, hasValidWorkspaceId, load, router])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })

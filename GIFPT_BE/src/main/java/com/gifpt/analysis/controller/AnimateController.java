@@ -5,6 +5,9 @@ import com.gifpt.analysis.domain.AnalysisStatus;
 import com.gifpt.analysis.repository.AnalysisJobRepository;
 import com.gifpt.file.service.S3StorageService;
 import com.gifpt.security.auth.user.CustomUserPrincipal;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +29,14 @@ import java.util.Map;
 @RequestMapping("/api/v1/animate")
 @RequiredArgsConstructor
 public class AnimateController {
+
+    private static final int MAX_ALGORITHM_LENGTH = 200;
+    private static final int MAX_PROMPT_LENGTH = 8000;
+
+    public record AnimateRequest(
+            @NotBlank @Size(max = MAX_ALGORITHM_LENGTH) String algorithm,
+            @Size(max = MAX_PROMPT_LENGTH) String prompt
+    ) {}
 
     private final S3StorageService s3StorageService;
     private final AnalysisJobRepository analysisJobRepository;
@@ -61,15 +72,12 @@ public class AnimateController {
      */
     @PostMapping
     public ResponseEntity<?> animateWithPrompt(
-            @RequestBody Map<String, String> body,
+            @Valid @RequestBody AnimateRequest body,
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
-        String algorithm = body.get("algorithm");
-        String prompt = body.get("prompt");
-        if (algorithm == null || algorithm.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "invalid_algorithm", "message", "algorithm is required"));
-        }
+        String algorithm = body.algorithm().trim();
+        String prompt = body.prompt() == null ? null : body.prompt().trim();
+        if (prompt != null && prompt.isBlank()) prompt = null;
         return doAnimate(algorithm, prompt, user);
     }
 

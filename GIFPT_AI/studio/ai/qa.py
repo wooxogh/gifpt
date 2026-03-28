@@ -19,7 +19,11 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+try:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+except Exception as exc:
+    logger.error("Failed to initialize OpenAI client at import time; Vision QA may be unavailable: %s", exc)
+    client = None
 
 
 # ── 1. IR Validation ─────────────────────────────────────────────────────────
@@ -175,6 +179,14 @@ def vision_qa(
             "summary": str,
         }
     """
+    if not client:
+        return {
+            "score": -1,
+            "passed": True,  # Don't block on QA failure
+            "issues": ["OpenAI client not initialized"],
+            "summary": "Vision QA unavailable",
+        }
+
     frames = extract_frames(video_path, num_frames)
 
     if not frames:

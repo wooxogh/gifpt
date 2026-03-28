@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { Link, useRouter } from '@/i18n/navigation'
 import Nav from '@/components/layout/Nav'
 import Footer from '@/components/layout/Footer'
@@ -30,12 +30,13 @@ function StatusBadge({ status }: { status: WorkspaceStatus }) {
   )
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+function formatDate(iso: string, locale: string) {
+  return new Date(iso).toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default function WorkspacesPage() {
   const t = useTranslations('workspaces')
+  const locale = useLocale()
   const { auth } = useAuth()
   const router = useRouter()
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
@@ -211,7 +212,7 @@ export default function WorkspacesPage() {
                     </p>
                   )}
                   <p className="text-xs mt-auto" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}>
-                    {t('created_at')} {formatDate(ws.createdAt)}
+                    {t('created_at')} {formatDate(ws.createdAt, locale)}
                   </p>
                   <div className="flex gap-2 pt-1">
                     <Link

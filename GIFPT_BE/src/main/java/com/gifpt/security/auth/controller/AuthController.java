@@ -42,6 +42,12 @@ public class AuthController {
   public record SignupReq(String email, String password, String openaiApiKey) {}
   public record LoginReq(String email, String password) {}
 
+  private static String normalizeApiKey(String apiKey) {
+    if (apiKey == null) return null;
+    String trimmed = apiKey.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
+
   @PostMapping("/signup")
   public ResponseEntity<?> signup(@RequestBody SignupReq req, HttpServletResponse res) {
     if (userRepo.existsByEmail(req.email())) {
@@ -50,7 +56,7 @@ public class AuthController {
     User u = new User();
     u.setEmail(req.email());
     u.setPasswordHash(encoder.encode(req.password()));
-    u.setOpenaiApiKey(req.openaiApiKey());
+    u.setOpenaiApiKey(normalizeApiKey(req.openaiApiKey()));
     userRepo.save(u);
 
     Map<String, Object> claims = new HashMap<>();
