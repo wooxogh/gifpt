@@ -63,6 +63,22 @@ export default function Nav() {
             )}
           </Link>
 
+          {auth.status === 'authenticated' && (
+            <Link
+              href="/workspaces"
+              className="relative transition-colors hover:text-primary focus-visible:text-primary"
+              style={{ color: pathname.startsWith('/workspaces') ? 'var(--primary)' : 'var(--text-muted)' }}
+            >
+              {t('workspaces')}
+              {pathname.startsWith('/workspaces') && (
+                <span
+                  className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full"
+                  style={{ background: 'var(--primary)' }}
+                />
+              )}
+            </Link>
+          )}
+
           {auth.status === 'authenticated' ? (
             <div className="flex items-center space-x-4">
               <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -142,6 +158,20 @@ export default function Nav() {
             >
               {t('gallery')}
             </Link>
+
+            {auth.status === 'authenticated' && (
+              <Link
+                href="/workspaces"
+                onClick={closeMobileMenu}
+                className="px-4 py-3 rounded-lg transition-colors"
+                style={{
+                  color: pathname.startsWith('/workspaces') ? 'var(--primary)' : 'var(--text-secondary)',
+                  background: pathname.startsWith('/workspaces') ? 'var(--bg-elevated)' : 'transparent',
+                }}
+              >
+                {t('workspaces')}
+              </Link>
+            )}
 
             {auth.status === 'authenticated' ? (
               <>

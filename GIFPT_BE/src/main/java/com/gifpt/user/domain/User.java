@@ -1,5 +1,7 @@
 package com.gifpt.user.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.gifpt.security.auth.crypto.EncryptedStringAttributeConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,6 +24,11 @@ public class User {
 
   @Column(name = "display_name", length = 80)
   private String displayName;
+
+  @Convert(converter = EncryptedStringAttributeConverter.class)
+  @Column(name = "openai_api_key", length = 1024)
+  @JsonIgnore
+  private String openaiApiKey;
 
   @Column(nullable = false, length = 16)
   private String status = "ACTIVE";

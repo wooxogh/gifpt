@@ -3,7 +3,7 @@ import createNextIntlPlugin from 'next-intl/plugin'
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
-const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:80'
+const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:8080'
 
 const nextConfig: NextConfig = {
   async rewrites() {

@@ -467,21 +467,22 @@ def _upload_to_s3_with_key(file_path: str, key: str) -> str:
 
 
 @shared_task(name="studio.animate_algorithm")
-def animate_algorithm(job_id: int, algorithm: str):
-    """Generate a Manim animation for a named algorithm.
+def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
+    """Generate a Manim animation for a named algorithm or custom logic description.
 
-    Flow:
-        normalize_slug → domain classify (LLM, 5s timeout) → ExampleLibrary
-        → few-shot codegen (gpt-4.1-mini) → run_manim_code → S3 (hash key)
-        → Spring callback
+    When prompt is provided (custom description / pseudocode), uses the rich
+    render_video_from_instructions pipeline (pseudocode IR → anim IR → codegen).
+    When only algorithm name is given, uses the fast few-shot codegen path.
 
-    Error handling:
-        - openai.RateLimitError      : exponential backoff, max 3 retries
-        - subprocess.TimeoutExpired  : caught inside run_manim_code (fallback)
-        - requests.ConnectionError   : push job_id to Redis dead-letter key
-        - json.JSONDecodeError       : log + fall back to all examples
+    Flow (name only):
+        normalize_slug → domain classify → ExampleLibrary → few-shot codegen
+        → run_manim_code → S3 (hash key) → Spring callback
+
+    Flow (with prompt):
+        render_video_from_instructions(prompt) → S3 (UUID key) → Spring callback
     """
     import openai
+    import uuid
     from django.core.cache import cache  # Django Redis cache backend
     from studio.ai.example_library import normalize_slug, get_library
     from studio.ai.llm_domain import call_llm_detect_domain
@@ -489,84 +490,101 @@ def animate_algorithm(job_id: int, algorithm: str):
     from studio.ai.llm_codegen import call_llm_codegen_for_algorithm
 
     task_start = time.time()
-    logger.info("animate_algorithm started job_id=%s algorithm=%r", job_id, algorithm)
+    logger.info("animate_algorithm started job_id=%s algorithm=%r prompt=%s",
+                job_id, algorithm, "provided" if prompt else "none")
 
     slug = normalize_slug(algorithm)
-    s3_key = _s3_key_for_slug(slug)
     callback_body: dict = {}
 
     try:
-        # 1) Cache check — return immediately if video already exists
-        if _s3_object_exists(s3_key):
-            video_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{s3_key}"
-            logger.info("animate_algorithm cache HIT slug=%s", slug)
-            callback_body = {
-                "status": "SUCCESS",
-                "resultUrl": video_url,
-                "cache": "HIT",
-                "errorMessage": None,
-            }
-        else:
-            # 2) Domain classify → PatternType (5s timeout; fallback to all examples)
-            domain = None
-            pattern_type = None
-            try:
-                domain = call_llm_detect_domain(slug.replace("_", " "))
-                pattern_type = DOMAIN_TO_PATTERN.get(domain)
-            except Exception as exc:
-                logger.warning("animate_algorithm domain classify failed (%s) — using all examples", exc)
-
-            # 3) Retrieve few-shot examples
-            library = get_library()
-            examples = library.get_examples(pattern_type, top_k=3)
-            logger.info(
-                "animate_algorithm slug=%s domain=%s pattern=%s examples=%s",
-                slug, domain, pattern_type,
-                [e.get("tag") for e in examples],
-            )
-
-            # 4) Codegen with exponential backoff on rate limit
-            manim_code = None
-            for attempt in range(1, 4):
-                try:
-                    manim_code = call_llm_codegen_for_algorithm(algorithm, examples)
-                    break
-                except openai.RateLimitError:
-                    wait = 2 ** attempt  # 2s, 4s, 8s
-                    logger.warning("RateLimitError, retrying in %ds (attempt %d/3)", wait, attempt)
-                    time.sleep(wait)
-
-            if manim_code is None:
-                raise RuntimeError("Codegen failed after 3 rate-limit retries")
-
-            # 5) Render
-            render_start = time.perf_counter()
-            output_dir = RESULT_DIR / "animations"
-            output_name = f"{slug}.mp4"
-            video_local_path = run_manim_code(manim_code, output_dir, output_name)
-            render_time = time.perf_counter() - render_start
-
-            # 6) Upload to S3 with deterministic hash key
+        # ── Path A: Custom prompt → rich pipeline ──
+        if prompt:
+            logger.info("animate_algorithm using rich pipeline for prompt job_id=%s", job_id)
+            video_local_path = render_video_from_instructions(prompt)
+            s3_key = f"animations/{uuid.uuid4().hex}.mp4"
             video_url = _upload_to_s3_with_key(video_local_path, s3_key)
-            logger.info(
-                "animate_algorithm",
-                extra={
-                    "algorithm": slug,
-                    "domain": domain,
-                    "pattern_type": str(pattern_type),
-                    "examples_used": [e.get("tag") for e in examples],
-                    "cache": "MISS",
-                    "render_time_s": round(render_time, 2),
-                    "job_id": job_id,
-                },
-            )
-
             callback_body = {
                 "status": "SUCCESS",
                 "resultUrl": video_url,
                 "cache": "MISS",
                 "errorMessage": None,
             }
+
+        else:
+            # ── Path B: Algorithm name → few-shot codegen ──
+            s3_key = _s3_key_for_slug(slug)
+
+            # 1) Cache check — return immediately if video already exists
+            if _s3_object_exists(s3_key):
+                video_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{s3_key}"
+                logger.info("animate_algorithm cache HIT slug=%s", slug)
+                callback_body = {
+                    "status": "SUCCESS",
+                    "resultUrl": video_url,
+                    "cache": "HIT",
+                    "errorMessage": None,
+                }
+            else:
+                # 2) Domain classify → PatternType (5s timeout; fallback to all examples)
+                domain = None
+                pattern_type = None
+                try:
+                    domain = call_llm_detect_domain(slug.replace("_", " "))
+                    pattern_type = DOMAIN_TO_PATTERN.get(domain)
+                except Exception as exc:
+                    logger.warning("animate_algorithm domain classify failed (%s) — using all examples", exc)
+
+                # 3) Retrieve few-shot examples
+                library = get_library()
+                examples = library.get_examples(pattern_type, top_k=3)
+                logger.info(
+                    "animate_algorithm slug=%s domain=%s pattern=%s examples=%s",
+                    slug, domain, pattern_type,
+                    [e.get("tag") for e in examples],
+                )
+
+                # 4) Codegen with exponential backoff on rate limit
+                manim_code = None
+                for attempt in range(1, 4):
+                    try:
+                        manim_code = call_llm_codegen_for_algorithm(algorithm, examples)
+                        break
+                    except openai.RateLimitError:
+                        wait = 2 ** attempt  # 2s, 4s, 8s
+                        logger.warning("RateLimitError, retrying in %ds (attempt %d/3)", wait, attempt)
+                        time.sleep(wait)
+
+                if manim_code is None:
+                    raise RuntimeError("Codegen failed after 3 rate-limit retries")
+
+                # 5) Render
+                render_start = time.perf_counter()
+                output_dir = RESULT_DIR / "animations"
+                output_name = f"{slug}.mp4"
+                video_local_path = run_manim_code(manim_code, output_dir, output_name)
+                render_time = time.perf_counter() - render_start
+
+                # 6) Upload to S3 with deterministic hash key
+                video_url = _upload_to_s3_with_key(video_local_path, s3_key)
+                logger.info(
+                    "animate_algorithm",
+                    extra={
+                        "algorithm": slug,
+                        "domain": domain,
+                        "pattern_type": str(pattern_type),
+                        "examples_used": [e.get("tag") for e in examples],
+                        "cache": "MISS",
+                        "render_time_s": round(render_time, 2),
+                        "job_id": job_id,
+                    },
+                )
+
+                callback_body = {
+                    "status": "SUCCESS",
+                    "resultUrl": video_url,
+                    "cache": "MISS",
+                    "errorMessage": None,
+                }
 
     except Exception as exc:
         logger.exception("animate_algorithm failed job_id=%s", job_id)

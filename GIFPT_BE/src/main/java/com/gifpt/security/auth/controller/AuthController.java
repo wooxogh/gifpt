@@ -39,8 +39,14 @@ public class AuthController {
     this.refreshService = rs;
   }
 
-  public record SignupReq(String email, String password, String displayName) {}
+  public record SignupReq(String email, String password, String openaiApiKey) {}
   public record LoginReq(String email, String password) {}
+
+  private static String normalizeApiKey(String apiKey) {
+    if (apiKey == null) return null;
+    String trimmed = apiKey.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
 
   @PostMapping("/signup")
   public ResponseEntity<?> signup(@RequestBody SignupReq req, HttpServletResponse res) {
@@ -50,12 +56,11 @@ public class AuthController {
     User u = new User();
     u.setEmail(req.email());
     u.setPasswordHash(encoder.encode(req.password()));
-    u.setDisplayName(req.displayName());
+    u.setOpenaiApiKey(normalizeApiKey(req.openaiApiKey()));
     userRepo.save(u);
 
     Map<String, Object> claims = new HashMap<>();
     claims.put("role", "USER");
-    claims.put("name", u.getDisplayName()); // HashMap은 null 값을 허용합니다.
 
 // 2. HashMap을 토큰 생성에 사용
 String access = jwtService.generateToken(u.getEmail(), claims);

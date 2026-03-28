@@ -6,27 +6,76 @@ import { Link } from '@/i18n/navigation'
 import { useAnimate } from '@/hooks/useAnimate'
 import { useAuth } from '@/context/AuthContext'
 
-const CHIPS = ['Binary Search', 'Quick Sort', 'A* Pathfinding']
+type Mode = 'name' | 'describe'
+
+const NAME_CHIPS = ['Binary Search', 'Quick Sort', 'A* Pathfinding']
+const DESCRIBE_CHIPS = [
+  {
+    label: 'S3FIFO Cache Eviction',
+    text: 'S3FIFO Cache Eviction\n\nThree FIFO queues: Small, Main, Ghost.\n1. New items enter Small queue\n2. On cache hit in Small → promote to Main\n3. On eviction from Small → if accessed, move to Main; else move to Ghost\n4. Ghost tracks recently evicted keys to filter one-hit wonders',
+  },
+  {
+    label: 'Raft Leader Election',
+    text: 'Raft Leader Election\n\nNodes start as Followers with random election timeout.\n1. Timeout expires → become Candidate, increment term, vote for self\n2. Send RequestVote RPC to all other nodes\n3. If majority votes received → become Leader\n4. Leader sends periodic heartbeats to maintain authority\n5. If higher term discovered → step down to Follower',
+  },
+  {
+    label: 'LSM-Tree Compaction',
+    text: 'LSM-Tree Compaction\n\n1. Writes go to in-memory MemTable\n2. When MemTable is full → flush to Level 0 SSTable on disk\n3. Level 0 SSTables may overlap → merge-sort into Level 1\n4. Each level has size limit (10x previous)\n5. When level exceeds limit → pick SSTable, merge with overlapping SSTables in next level\n6. Result: sorted, non-overlapping SSTables at each level',
+  },
+]
 
 export default function Hero() {
   const t = useTranslations('hero')
   const te = useTranslations('errors')
   const { auth } = useAuth()
-  const [input, setInput] = useState('')
+  const [mode, setMode] = useState<Mode>('name')
+  const [nameInput, setNameInput] = useState('')
+  const [describeInput, setDescribeInput] = useState('')
   const token = auth.status === 'authenticated' ? auth.token : null
   const { state, animate, reset } = useAnimate(token)
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const trimmed = input.trim()
-    if (!trimmed) return
-    animate(trimmed)
-  }
 
   const isSubmitting =
     state.phase === 'loading' ||
     state.phase === 'pending' ||
     state.phase === 'running'
+
+  function submitAnimation() {
+    if (mode === 'name') {
+      const trimmed = nameInput.trim()
+      if (!trimmed) return
+      animate(trimmed)
+    } else {
+      const trimmed = describeInput.trim()
+      if (!trimmed) return
+      const firstLine = trimmed.split('\n')[0].trim()
+      animate(firstLine || trimmed.slice(0, 64), trimmed)
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    submitAnimation()
+  }
+
+  function handleDescribeKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Ctrl/Cmd+Enter to submit in describe mode
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !isSubmitting) {
+      e.preventDefault()
+      submitAnimation()
+    }
+  }
+
+  function handleNameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' && !isSubmitting) {
+      e.preventDefault()
+      submitAnimation()
+    }
+  }
+
+  function switchMode(m: Mode) {
+    if (state.phase !== 'idle' && state.phase !== 'error' && state.phase !== 'login_required') return
+    setMode(m)
+  }
 
   return (
     <>
@@ -34,7 +83,6 @@ export default function Hero() {
       <section className="relative min-h-screen pt-20 flex flex-col items-center justify-center overflow-hidden">
         {/* Background elements */}
         <div className="absolute inset-0 pointer-events-none">
-          {/* Dot grid */}
           <div
             className="absolute inset-0 opacity-20"
             style={{
@@ -42,7 +90,6 @@ export default function Hero() {
               backgroundSize: '40px 40px',
             }}
           />
-          {/* Decorative SVG lines */}
           <svg className="absolute top-0 left-0 w-full h-full opacity-10" preserveAspectRatio="none" viewBox="0 0 1000 1000">
             <path d="M0,500 Q250,400 500,500 T1000,500" fill="transparent" stroke="var(--primary)" strokeWidth="0.5" />
             <path d="M0,300 Q250,600 500,300 T1000,300" fill="transparent" stroke="var(--secondary)" strokeWidth="0.5" />
@@ -76,7 +123,7 @@ export default function Hero() {
             className="hero-text-gradient font-black text-5xl md:text-7xl lg:text-8xl tracking-tighter mb-8 leading-tight"
             style={{ fontFamily: 'var(--font-manrope)' }}
           >
-            Animate any algorithm
+            {t('title')}
           </h1>
 
           {/* Subtitle */}
@@ -84,98 +131,194 @@ export default function Hero() {
             className="text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed"
             style={{ color: 'var(--text-secondary)' }}
           >
-            {t('subtitle')}
+            {mode === 'name' ? t('subtitle') : t('subtitle_describe')}
           </p>
 
-          {/* Input */}
+          {/* Input area */}
           <div className="relative w-full max-w-2xl mx-auto group">
+            {/* Glow effect */}
             <div
               className="absolute -inset-1 rounded-xl blur-xl opacity-0 group-focus-within:opacity-100 transition duration-500"
-              style={{ background: 'linear-gradient(to right, rgba(192,193,255,0.2), rgba(221,183,255,0.2))' }}
+              style={{ background: mode === 'name'
+                ? 'linear-gradient(to right, rgba(192,193,255,0.2), rgba(221,183,255,0.2))'
+                : 'linear-gradient(to right, rgba(221,183,255,0.25), rgba(192,193,255,0.15))'
+              }}
             />
-            <form
-              onSubmit={handleSubmit}
-              className="relative flex flex-col md:flex-row items-stretch md:items-center gap-3 p-2 rounded-xl shadow-2xl"
+
+            <div
+              className="relative rounded-xl shadow-2xl overflow-hidden"
               style={{
                 background: 'var(--bg-lowest)',
                 border: '1px solid rgba(70,69,84,0.15)',
               }}
             >
-              <div className="flex-grow flex items-center px-4">
-                <span className="material-symbols-outlined mr-3 text-xl" style={{ color: 'rgba(144,143,160,0.5)' }}>
-                  search
-                </span>
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={t('placeholder')}
-                  disabled={isSubmitting}
-                  className="w-full bg-transparent border-none outline-none py-4 text-base"
+              {/* ── Mode tabs ── */}
+              <div className="flex border-b" style={{ borderColor: 'rgba(70,69,84,0.15)' }}>
+                <button
+                  type="button"
+                  onClick={() => switchMode('name')}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200"
                   style={{
-                    color: 'var(--text-primary)',
-                    fontFamily: 'var(--font-inter)',
+                    fontFamily: 'var(--font-space-grotesk)',
+                    color: mode === 'name' ? 'var(--primary)' : 'var(--text-muted)',
+                    background: mode === 'name' ? 'rgba(128,131,255,0.06)' : 'transparent',
+                    borderBottom: mode === 'name' ? '2px solid var(--primary)' : '2px solid transparent',
                   }}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="action-gradient font-black px-8 py-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-300 active:scale-95 group/btn"
-                style={{
-                  fontFamily: 'var(--font-manrope)',
-                  color: 'var(--on-primary)',
-                  boxShadow: isSubmitting ? 'none' : '0 0 24px rgba(128,131,255,0.2)',
-                  opacity: isSubmitting ? 0.7 : 1,
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSubmitting) e.currentTarget.style.boxShadow = '0 0 32px rgba(128,131,255,0.4)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = isSubmitting ? 'none' : '0 0 24px rgba(128,131,255,0.2)'
-                }}
-              >
-                <span>{isSubmitting ? t('animating') : t('cta')}</span>
-                <span
-                  className="material-symbols-outlined text-xl transition-transform group-hover/btn:translate-x-1"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
                 >
-                  bolt
-                </span>
-              </button>
-            </form>
+                  <span className="material-symbols-outlined text-lg">search</span>
+                  {t('tab_name')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('describe')}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200"
+                  style={{
+                    fontFamily: 'var(--font-space-grotesk)',
+                    color: mode === 'describe' ? 'var(--secondary)' : 'var(--text-muted)',
+                    background: mode === 'describe' ? 'rgba(221,183,255,0.06)' : 'transparent',
+                    borderBottom: mode === 'describe' ? '2px solid var(--secondary)' : '2px solid transparent',
+                  }}
+                >
+                  <span className="material-symbols-outlined text-lg">code</span>
+                  {t('tab_describe')}
+                </button>
+              </div>
+
+              {/* ── Input body ── */}
+              <form onSubmit={handleSubmit} className="flex flex-col">
+                {mode === 'name' ? (
+                  /* Name mode: single-line input */
+                  <div className="flex items-center gap-3 px-5 py-4">
+                    <input
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={handleNameKeyDown}
+                      placeholder={t('placeholder_name')}
+                      disabled={isSubmitting}
+                      className="flex-1 bg-transparent border-none outline-none text-base"
+                      style={{
+                        color: 'var(--text-primary)',
+                        fontFamily: 'var(--font-inter)',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !nameInput.trim()}
+                      className="action-gradient font-black px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        fontFamily: 'var(--font-manrope)',
+                        color: 'var(--on-primary)',
+                        boxShadow: isSubmitting ? 'none' : '0 0 24px rgba(128,131,255,0.2)',
+                      }}
+                    >
+                      <span>{isSubmitting ? t('animating') : t('cta')}</span>
+                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
+                    </button>
+                  </div>
+                ) : (
+                  /* Describe mode: textarea + submit */
+                  <>
+                    <textarea
+                      value={describeInput}
+                      onChange={(e) => setDescribeInput(e.target.value)}
+                      onKeyDown={handleDescribeKeyDown}
+                      placeholder={t('placeholder_describe')}
+                      disabled={isSubmitting}
+                      rows={6}
+                      className="w-full bg-transparent border-none outline-none px-5 py-4 text-sm resize-none"
+                      style={{
+                        color: 'var(--text-primary)',
+                        fontFamily: 'var(--font-jetbrains-mono)',
+                        lineHeight: '1.7',
+                      }}
+                    />
+                    <div
+                      className="flex items-center justify-between px-5 py-3 border-t"
+                      style={{ borderColor: 'rgba(70,69,84,0.1)' }}
+                    >
+                      <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}>
+                        {t('describe_hint')}
+                      </span>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !describeInput.trim()}
+                        className="font-black px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                          fontFamily: 'var(--font-manrope)',
+                          background: 'var(--secondary)',
+                          color: 'var(--on-primary)',
+                          boxShadow: isSubmitting ? 'none' : '0 0 24px rgba(221,183,255,0.2)',
+                        }}
+                      >
+                        <span>{isSubmitting ? t('animating') : t('cta')}</span>
+                        <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+            </div>
           </div>
 
-          {/* Chips */}
+          {/* Chips — change based on mode */}
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <span
-              className="text-xs uppercase tracking-wider self-center mr-2"
-              style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--text-muted)' }}
-            >
-              {t('quick_start')}
-            </span>
-            {CHIPS.map((chip) => (
-              <button
-                key={chip}
-                onClick={() => setInput(chip)}
-                className="px-4 py-1.5 rounded-full text-sm transition-colors"
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid rgba(70,69,84,0.1)',
-                  color: 'var(--text-secondary)',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
-              >
-                {chip}
-              </button>
-            ))}
+            {mode === 'name' ? (
+              <>
+                <span
+                  className="text-xs uppercase tracking-wider self-center mr-2"
+                  style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--text-muted)' }}
+                >
+                  {t('quick_start')}
+                </span>
+                {NAME_CHIPS.map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => setNameInput(chip)}
+                    className="px-4 py-1.5 rounded-full text-sm transition-colors"
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid rgba(70,69,84,0.1)',
+                      color: 'var(--text-secondary)',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <span
+                  className="text-xs uppercase tracking-wider self-center mr-2"
+                  style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--secondary)' }}
+                >
+                  {t('examples')}
+                </span>
+                {DESCRIBE_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    onClick={() => setDescribeInput(chip.text)}
+                    className="px-4 py-1.5 rounded-full text-sm transition-colors"
+                    style={{
+                      background: 'rgba(221,183,255,0.06)',
+                      border: '1px solid rgba(221,183,255,0.15)',
+                      color: 'var(--text-secondary)',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--secondary)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
 
           {/* Status / result area */}
           {(state.phase === 'loading' || state.phase === 'pending' || state.phase === 'running') && (
-            <p className="mt-8 text-sm animate-pulse" style={{ color: 'var(--primary)' }}>
+            <p className="mt-8 text-sm animate-pulse" style={{ color: mode === 'name' ? 'var(--primary)' : 'var(--secondary)' }}>
               {state.phase === 'loading' && t('status_loading')}
               {state.phase === 'pending' && t('status_pending')}
               {state.phase === 'running' && t('status_running')}
@@ -189,7 +332,7 @@ export default function Hero() {
                   className="text-xs font-mono px-3 py-1 rounded-full"
                   style={{ background: 'var(--bg-surface)', border: '1px solid rgba(70,69,84,0.3)', color: 'var(--text-muted)' }}
                 >
-                  ✦ cached
+                  cached
                 </span>
               )}
               <video

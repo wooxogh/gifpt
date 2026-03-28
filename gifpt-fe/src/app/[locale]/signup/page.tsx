@@ -12,9 +12,9 @@ export default function SignupPage() {
   const t = useTranslations('auth')
   const { signup } = useAuth()
   const router = useRouter()
-  const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -24,7 +24,7 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      await signup(email, password, displayName)
+      await signup(email, password, openaiApiKey)
       router.push('/')
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
@@ -129,34 +129,6 @@ export default function SignupPage() {
                   className="block text-xs uppercase tracking-widest px-1"
                   style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
                 >
-                  {t('display_name')}
-                </label>
-                <div className="relative">
-                  <span
-                    className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg select-none"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    badge
-                  </span>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="celestial_creator"
-                    required
-                    className="w-full py-3.5 pl-12 pr-4 text-sm outline-none transition-all"
-                    style={inputBase}
-                    onFocus={onFocus}
-                    onBlur={onBlur}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  className="block text-xs uppercase tracking-widest px-1"
-                  style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
-                >
                   {t('email')}
                 </label>
                 <div className="relative">
@@ -207,6 +179,37 @@ export default function SignupPage() {
                     onBlur={onBlur}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  className="block text-xs uppercase tracking-widest px-1"
+                  style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-space-grotesk)' }}
+                >
+                  {t('openai_api_key')}
+                </label>
+                <div className="relative">
+                  <span
+                    className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg select-none"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    key
+                  </span>
+                  <input
+                    type="password"
+                    value={openaiApiKey}
+                    onChange={(e) => setOpenaiApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    required
+                    className="w-full py-3.5 pl-12 pr-4 text-sm outline-none transition-all"
+                    style={{ ...inputBase, fontFamily: 'var(--font-jetbrains-mono)' }}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                  />
+                </div>
+                <p className="text-xs px-1" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}>
+                  {t('openai_api_key_hint')}
+                </p>
               </div>
 
               {error && (
