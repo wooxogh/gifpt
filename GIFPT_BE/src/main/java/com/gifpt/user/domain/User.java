@@ -23,6 +23,9 @@ public class User {
   @Column(name = "display_name", length = 80)
   private String displayName;
 
+  @Column(name = "openai_api_key", length = 255)
+  private String openaiApiKey;
+
   @Column(nullable = false, length = 16)
   private String status = "ACTIVE";
 

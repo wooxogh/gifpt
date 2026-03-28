@@ -79,12 +79,12 @@ export function useAnimate(token?: string | null) {
     }, POLL_INTERVAL_MS)
   }, [stopPolling])
 
-  const animate = useCallback(async (algorithm: string) => {
+  const animate = useCallback(async (algorithm: string, prompt?: string | null) => {
     stopPolling()
     setState({ phase: 'loading' })
 
     try {
-      const { status, data } = await fetchAnimate(algorithm, tokenRef.current)
+      const { status, data } = await fetchAnimate(algorithm, tokenRef.current, prompt)
 
       if (!isMountedRef.current) return // Guard after async operation
 

@@ -40,56 +40,94 @@ public class AnimateController {
     /**
      * GET /api/v1/animate?algorithm={name}
      *
+     * Simple algorithm name lookup (backward compatible).
      * Anonymous: cache HIT → 200 + videoUrl; cache MISS → 401
      * Authenticated: cache HIT → 200 + videoUrl; cache MISS → 202 + jobId
-     *
-     * Response headers: X-Cache: HIT | MISS
      */
     @GetMapping
     public ResponseEntity<?> animate(
             @RequestParam String algorithm,
             @AuthenticationPrincipal CustomUserPrincipal user
     ) {
+        return doAnimate(algorithm, null, user);
+    }
+
+    /**
+     * POST /api/v1/animate
+     *
+     * Extended endpoint: accepts algorithm name + optional prompt (description/pseudocode).
+     * When prompt is provided, skips cache and uses the rich rendering pipeline.
+     * Body: { "algorithm": "S3FIFO", "prompt": "S3FIFO uses three FIFO queues..." }
+     */
+    @PostMapping
+    public ResponseEntity<?> animateWithPrompt(
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal CustomUserPrincipal user
+    ) {
+        String algorithm = body.get("algorithm");
+        String prompt = body.get("prompt");
+        if (algorithm == null || algorithm.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "invalid_algorithm", "message", "algorithm is required"));
+        }
+        return doAnimate(algorithm, prompt, user);
+    }
+
+    private ResponseEntity<?> doAnimate(String algorithm, String prompt, CustomUserPrincipal user) {
         String slug = normalizeSlug(algorithm);
         if (slug.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "invalid_algorithm", "message", "Algorithm name is empty or invalid after normalization"));
         }
 
-        String s3Key = s3KeyForSlug(slug);
-        boolean cacheHit = s3StorageService.objectExists(s3Key);
+        boolean hasPrompt = prompt != null && !prompt.isBlank();
 
-        if (cacheHit) {
-            String videoUrl = "https://" + s3Bucket + ".s3.amazonaws.com/" + s3Key;
-            log.info("[ANIMATE] cache HIT slug={}", slug);
-            return ResponseEntity.ok()
-                    .header("X-Cache", "HIT")
-                    .body(Map.of("status", "SUCCESS", "videoUrl", videoUrl));
+        // Only check cache when there is no custom prompt
+        if (!hasPrompt) {
+            String s3Key = s3KeyForSlug(slug);
+            boolean cacheHit = s3StorageService.objectExists(s3Key);
+
+            if (cacheHit) {
+                String videoUrl = "https://" + s3Bucket + ".s3.amazonaws.com/" + s3Key;
+                log.info("[ANIMATE] cache HIT slug={}", slug);
+                return ResponseEntity.ok()
+                        .header("X-Cache", "HIT")
+                        .body(Map.of("status", "SUCCESS", "videoUrl", videoUrl));
+            }
         }
 
-        // Cache MISS — anonymous users cannot trigger generation
+        // Cache MISS or custom prompt — anonymous users cannot trigger generation
         if (user == null) {
-            log.info("[ANIMATE] cache MISS, anonymous user slug={}", slug);
+            log.info("[ANIMATE] generation required, anonymous user slug={}", slug);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .header("X-Cache", "MISS")
                     .body(Map.of("error", "login_required", "message", "로그인 후 생성 가능"));
         }
 
-        // Cache MISS + authenticated → create job + dispatch
+        // Authenticated → create job + dispatch
         AnalysisJob job = AnalysisJob.builder()
                 .userId(user.getId())
                 .status(AnalysisStatus.PENDING)
-                .prompt(algorithm)
+                .prompt(hasPrompt ? prompt : algorithm)
                 .build();
         analysisJobRepository.save(job);
 
-        log.info("[ANIMATE] cache MISS, dispatching job_id={} slug={} userId={}", job.getId(), slug, user.getId());
+        log.info("[ANIMATE] dispatching job_id={} slug={} hasPrompt={} userId={}",
+                job.getId(), slug, hasPrompt, user.getId());
+
+        // Build dispatch body — include prompt only when provided
+        java.util.Map<String, Object> dispatchBody = new java.util.HashMap<>();
+        dispatchBody.put("job_id", job.getId());
+        dispatchBody.put("algorithm", algorithm);
+        if (hasPrompt) {
+            dispatchBody.put("prompt", prompt);
+        }
 
         RestClient restClient = restClientBuilder.baseUrl(aiServerBaseUrl).build();
         restClient.post()
                 .uri("/animate")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("job_id", job.getId(), "algorithm", algorithm))
+                .body(dispatchBody)
                 .retrieve()
                 .toBodilessEntity();
 

@@ -80,7 +80,10 @@ public class SecurityConfig {
   ) {
     var c = new org.springframework.web.cors.CorsConfiguration();
     c.setAllowedOrigins(java.util.List.of(
-      "https://gifpt-front.vercel.app"
+      "https://gifpt-front.vercel.app",
+      "https://gifpt-kappa.vercel.app",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000"
     ));
     c.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
     c.setAllowedHeaders(java.util.List.of("Authorization","Content-Type","X-Requested-With"));

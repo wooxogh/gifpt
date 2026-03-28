@@ -11,7 +11,7 @@ type AuthState =
 type AuthContextValue = {
   auth: AuthState
   login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, displayName: string) => Promise<void>
+  signup: (email: string, password: string, openaiApiKey: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuth({ status: 'authenticated', email: me.email, token })
   }, [])
 
-  const signup = useCallback(async (email: string, password: string, displayName: string) => {
-    const token = await apiSignup(email, password, displayName)
+  const signup = useCallback(async (email: string, password: string, openaiApiKey: string) => {
+    const token = await apiSignup(email, password, openaiApiKey)
     setToken(token)
     const me = await apiMe(token)
     setAuth({ status: 'authenticated', email: me.email, token })

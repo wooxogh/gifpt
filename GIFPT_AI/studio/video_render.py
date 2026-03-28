@@ -12,6 +12,7 @@ from studio.ai.llm import call_llm_domain_ir
 from studio.ai.render_cnn_matrix import render_cnn_matrix
 from studio.ai.render_sorting import render_sorting
 from studio.ai.llm_domain import build_sorting_trace_ir
+from studio.ai.qa import validate_pseudocode_ir, validate_anim_ir, vision_qa, IRValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -225,92 +226,106 @@ def render_video_from_instructions(instructions: str) -> str:
         return video_path
 
         # 3) 일반 알고리즘/모델 시각화 (pseudocode → anim_ir → manim 코드)
-    #    main.py의 고급 로직 이식
+    #    QA: IR 검증 실패 시 해당 단계 재생성, Vision QA 실패 시 전체 재생성
 
-    print("\n" + SEP)
-    print("🚀 LLM 기반 코드 생성 파이프라인 (Django worker)")
-    print(f"• Domain: {domain}")
-    # 1단계: pseudocode IR + usage
     from studio.ai.llm_pseudocode import call_llm_pseudocode_ir_with_usage
-    t0 = time.perf_counter()
-    pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(user_text)
-    t_pseudo = time.perf_counter() - t0
-
-    if usage_pseudo:
-        print(f"• Pseudocode tokens → prompt:{usage_pseudo.get('prompt_tokens')} "
-              f"completion:{usage_pseudo.get('completion_tokens')} "
-              f"total:{usage_pseudo.get('total_tokens')}")
-    print(f"• Pseudocode time → {t_pseudo:.2f}s")
-    print(SEP)
-
-    # 2단계: Animation IR
     from studio.ai.llm_anim_ir import call_llm_anim_ir_with_usage
-    ta0 = time.perf_counter()
-    anim_ir, usage_anim = call_llm_anim_ir_with_usage(pseudo_ir)
-    t_anim = time.perf_counter() - ta0
-
-    print("\n" + SUBSEP)
-    print("📊 Animation IR 생성 완료")
-    print(f"• Actions: {len(anim_ir.get('actions', []))}")
-    if usage_anim:
-        print(f"• Animation IR tokens → prompt:{usage_anim.get('prompt_tokens')} "
-              f"completion:{usage_anim.get('completion_tokens')} "
-              f"total:{usage_anim.get('total_tokens')}")
-    print(f"• Animation IR time → {t_anim:.2f}s")
-
-    # 3단계: Animation IR → Manim 코드 (리트라이 + post-check)
-    print("\n" + SUBSEP)
-    print("🧩 Step 2: CodeGen (Animation IR → Manim Code)")
     from studio.ai.llm_codegen import call_llm_codegen_with_usage
 
-    manim_code = None
-    max_codegen_attempts = 3
+    MAX_PIPELINE_ATTEMPTS = 2  # 전체 파이프라인 재시도 (Vision QA 실패 시)
+    MAX_IR_RETRIES = 2         # 각 IR 단계 재시도
 
-    for attempt in range(1, max_codegen_attempts + 1):
-        print(f"\n[CodeGen] ─ Attempt {attempt}/{max_codegen_attempts}")
-        start = time.perf_counter()
-        code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
-        issues = validate_manim_code_basic(code_try)
-        dur = time.perf_counter() - start
+    for pipeline_attempt in range(1, MAX_PIPELINE_ATTEMPTS + 1):
+        logger.info("[Pipeline] attempt %d/%d domain=%s", pipeline_attempt, MAX_PIPELINE_ATTEMPTS, domain)
 
-        if issues:
-            print(f"✖ Post-checks failed ({len(issues)} issues) • {dur:.2f}s")
-            if usage_codegen:
-                print(f"  · tokens → prompt:{usage_codegen.get('prompt_tokens')} "
-                      f"completion:{usage_codegen.get('completion_tokens')} "
-                      f"total:{usage_codegen.get('total_tokens')}")
-            for it in issues[:3]:
-                print(f"  - [{it['error_type']}] {it['message']}")
-            if attempt == max_codegen_attempts:
-                manim_code = code_try
-                print("→ Proceeding with last attempt (issues remain)")
+        # ── Step 1: Pseudocode IR + validation ──
+        pseudo_ir = None
+        for ir_try in range(1, MAX_IR_RETRIES + 1):
+            t0 = time.perf_counter()
+            pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(user_text)
+            t_pseudo = time.perf_counter() - t0
+            logger.info("[Pseudocode IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_pseudo)
+
+            ir_issues = validate_pseudocode_ir(pseudo_ir)
+            if not ir_issues:
+                logger.info("[Pseudocode IR] passed validation — entities=%d operations=%d",
+                            len(pseudo_ir.get("entities", [])), len(pseudo_ir.get("operations", [])))
+                break
+            logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
+            if ir_try == MAX_IR_RETRIES:
+                logger.warning("[Pseudocode IR] proceeding with last attempt despite issues")
+
+        # ── Step 2: Animation IR + validation ──
+        anim_ir = None
+        for ir_try in range(1, MAX_IR_RETRIES + 1):
+            ta0 = time.perf_counter()
+            anim_ir, usage_anim = call_llm_anim_ir_with_usage(pseudo_ir)
+            t_anim = time.perf_counter() - ta0
+            logger.info("[Anim IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_anim)
+
+            ir_issues = validate_anim_ir(anim_ir)
+            if not ir_issues:
+                logger.info("[Anim IR] passed validation — layout=%d actions=%d",
+                            len(anim_ir.get("layout", [])), len(anim_ir.get("actions", [])))
+                break
+            logger.warning("[Anim IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
+            if ir_try == MAX_IR_RETRIES:
+                logger.warning("[Anim IR] proceeding with last attempt despite issues")
+
+        # ── Step 3: Codegen (with existing retry + post-check) ──
+        manim_code = None
+        max_codegen_attempts = 3
+
+        for attempt in range(1, max_codegen_attempts + 1):
+            start = time.perf_counter()
+            code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
+            issues = validate_manim_code_basic(code_try)
+            dur = time.perf_counter() - start
+
+            if issues:
+                logger.warning("[CodeGen] attempt %d/%d failed (%d issues) %.2fs",
+                               attempt, max_codegen_attempts, len(issues), dur)
+                if attempt == max_codegen_attempts:
+                    manim_code = code_try
+                continue
             else:
-                print("→ Retrying with minimal feedback…")
-            continue
+                manim_code = code_try
+                logger.info("[CodeGen] attempt %d passed %.2fs", attempt, dur)
+                break
+
+        # Debug: save generated code
+        debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
+        debug_path = debug_dir / f"debug_generated_code_{domain}.py"
+        try:
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            debug_path.write_text(manim_code or "", encoding="utf-8")
+        except Exception:
+            pass
+
+        # ── Step 4: Render ──
+        output_dir = RESULT_DIR / "videos"
+        output_name = f"video_{int(time.time())}.mp4"
+        video_path = run_manim_code(manim_code, output_dir, output_name)
+        logger.info("[Render] video at %s", video_path)
+
+        # ── Step 5: Vision QA ──
+        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0)
+        logger.info("[Vision QA] score=%.1f passed=%s summary=%s",
+                    qa_result["score"], qa_result["passed"], qa_result["summary"])
+
+        if qa_result["passed"]:
+            if qa_result["score"] > 0:
+                logger.info("[Vision QA] PASSED (score=%.1f) — returning video", qa_result["score"])
+            return video_path
+
+        # QA failed — retry entire pipeline if attempts remain
+        if pipeline_attempt < MAX_PIPELINE_ATTEMPTS:
+            logger.warning("[Vision QA] FAILED (score=%.1f) — retrying pipeline. Issues: %s",
+                           qa_result["score"], qa_result["issues"])
         else:
-            manim_code = code_try
-            print(f"✔ Passed post-checks • {dur:.2f}s")
-            if usage_codegen:
-                print(f"  · tokens → prompt:{usage_codegen.get('prompt_tokens')} "
-                      f"completion:{usage_codegen.get('completion_tokens')} "
-                      f"total:{usage_codegen.get('total_tokens')}")
-            break
+            logger.warning("[Vision QA] FAILED (score=%.1f) — no retries left, returning best effort. Issues: %s",
+                           qa_result["score"], qa_result["issues"])
+            return video_path
 
-    # 디버깅용 코드 저장 (best-effort)
-    debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
-    debug_path = debug_dir / f"debug_generated_code_{domain}.py"
-    try:
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        debug_path.write_text(manim_code or "", encoding="utf-8")
-        print(f"📝 Generated code saved: {debug_path}")
-    except Exception:
-        pass
-
-    # 4단계: Manim 렌더링 (리트라이 + fallback)
-    print("\n" + SUBSEP)
-    print("🎬 Step 3: Rendering (Manim)")
-    output_dir = RESULT_DIR / "videos"
-    output_name = f"video_{int(time.time())}.mp4"
-    video_path = run_manim_code(manim_code, output_dir, output_name)
-    logger.info("🎬 video rendered at %s", video_path)
+    # Should not reach here, but just in case
     return video_path

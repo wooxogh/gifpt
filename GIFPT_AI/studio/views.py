@@ -96,8 +96,8 @@ def animate(request):
         except Exception:
             pass
 
-    missing = [f for f in ("job_id", "algorithm") if not data.get(f)]
-    if missing:
+    if not data.get("job_id") or not data.get("algorithm"):
+        missing = [f for f in ("job_id", "algorithm") if not data.get(f)]
         return Response(
             {"error": "missing_fields", "missing": missing},
             status=status.HTTP_400_BAD_REQUEST,
@@ -109,7 +109,8 @@ def animate(request):
         return Response({"error": "invalid_job_id"}, status=status.HTTP_400_BAD_REQUEST)
 
     algorithm = str(data["algorithm"])[:256]
-    task = animate_algorithm.delay(job_id=job_id, algorithm=algorithm)
+    prompt = str(data["prompt"])[:4000] if data.get("prompt") else None
+    task = animate_algorithm.delay(job_id=job_id, algorithm=algorithm, prompt=prompt)
     return Response({"task_id": task.id, "status": "QUEUED"}, status=status.HTTP_202_ACCEPTED)
 
 
