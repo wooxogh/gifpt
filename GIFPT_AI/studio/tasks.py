@@ -27,6 +27,7 @@ SPRING_CALLBACK_BASE = os.environ.get("SPRING_CALLBACK_BASE", "http://spring:808
 CALLBACK_SECRET = os.environ.get("GIFPT_CALLBACK_SECRET", "")
 UPLOAD_DIR = os.environ.get("GIFPT_UPLOAD_DIR", "/data/uploads")
 RESULT_DIR = os.environ.get("GIFPT_RESULT_DIR", "/data/results")
+DEAD_LETTER_TTL_SECONDS = int(os.environ.get("GIFPT_CALLBACK_DEAD_LETTER_TTL_SECONDS", "86400"))
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -436,8 +437,12 @@ Return JSON ONLY with keys: summary, video_instructions
         dead_letter_key = f"gifpt:callback:dead:{job_id}"
         try:
             from django.core.cache import cache
-            cache.set(dead_letter_key, json.dumps(callback_body), timeout=None)
-            logger.error("[CALLBACK] Spring unreachable — pushed to dead-letter key=%s", dead_letter_key)
+            cache.set(dead_letter_key, json.dumps(callback_body), timeout=DEAD_LETTER_TTL_SECONDS)
+            logger.error(
+                "[CALLBACK] Spring unreachable — pushed to dead-letter key=%s ttl=%ss",
+                dead_letter_key,
+                DEAD_LETTER_TTL_SECONDS,
+            )
         except Exception:
             logger.exception("[CALLBACK] failed to write dead-letter job_id=%s", job_id)
     except Exception:

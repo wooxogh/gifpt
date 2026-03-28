@@ -54,6 +54,9 @@ gifpt:
   upload-dir: ${GIFPT_UPLOAD_DIR:/data/uploads}
   ai-server:
     base-url: ${GIFPT_AI_SERVER_BASE_URL:http://django:8000}
+  callback:
+    secret: ${GIFPT_CALLBACK_SECRET:}
+    allow-unsigned: false
 
 openai:
   api:

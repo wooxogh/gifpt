@@ -26,7 +26,7 @@ export default function Footer() {
             href="https://github.com/wooxogh/gifpt"
             target="_blank"
             rel="noopener noreferrer"
-            className="transition-colors duration-200 hover:text-secondary"
+            className="transition-colors duration-200 hover:text-secondary focus-visible:text-secondary focus-visible:underline focus-visible:outline-none"
             style={{ color: 'var(--text-muted)' }}
           >
             GitHub

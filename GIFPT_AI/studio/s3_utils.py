@@ -2,7 +2,6 @@
 
 import os
 import uuid
-from pathlib import Path
 import boto3
 
 S3_BUCKET = os.environ.get("GIFPT_S3_BUCKET", "gifpt-demo")

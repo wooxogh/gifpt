@@ -140,8 +140,9 @@ public class AnimateController {
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception e) {
-            log.error("[ANIMATE] dispatch to AI server failed job_id={}: {}", job.getId(), e.getMessage());
+            log.error("[ANIMATE] dispatch to AI server failed job_id={}", job.getId(), e);
             job.setStatus(AnalysisStatus.FAILED);
+            job.setErrorMessage("AI server temporarily unavailable");
             analysisJobRepository.save(job);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "ai_server_unavailable", "message", "AI server is temporarily unavailable"));

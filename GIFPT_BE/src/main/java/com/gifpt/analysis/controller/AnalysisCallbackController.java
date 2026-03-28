@@ -4,7 +4,6 @@ package com.gifpt.analysis.controller;
 import com.gifpt.analysis.dto.AnalysisCallbackDTO;
 import com.gifpt.analysis.service.AnalysisJobService;
 import com.gifpt.workspace.service.WorkspaceService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +16,22 @@ public class AnalysisCallbackController {
     private final AnalysisJobService analysisJobService;
     private final WorkspaceService workspaceService;
     private final String callbackSecret;
+    private final boolean allowUnsignedCallbacks;
 
     public AnalysisCallbackController(
             AnalysisJobService analysisJobService,
             WorkspaceService workspaceService,
-            @Value("${gifpt.callback.secret:}") String callbackSecret
+            @Value("${gifpt.callback.secret:}") String callbackSecret,
+            @Value("${gifpt.callback.allow-unsigned:false}") boolean allowUnsignedCallbacks
     ) {
         this.analysisJobService = analysisJobService;
         this.workspaceService = workspaceService;
         this.callbackSecret = callbackSecret;
+        this.allowUnsignedCallbacks = allowUnsignedCallbacks;
+
+        if (!allowUnsignedCallbacks && callbackSecret.isBlank()) {
+            throw new IllegalStateException("gifpt.callback.secret must be configured when unsigned callbacks are not allowed");
+        }
     }
 
     @PostMapping("/{jobId}/complete")
@@ -34,9 +40,13 @@ public class AnalysisCallbackController {
             @RequestHeader(value = "X-Callback-Secret", required = false) String secret,
             @RequestBody AnalysisCallbackDTO dto
     ) {
-        // 시크릿이 설정된 경우에만 검증 (로컬 개발 시 미설정 허용)
-        if (!callbackSecret.isBlank() && !callbackSecret.equals(secret)) {
+        // 기본적으로 시크릿을 강제하고, 로컬 개발에서만 명시적으로 완화 가능
+        if (!allowUnsignedCallbacks && !callbackSecret.equals(secret)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        if (dto == null || dto.status() == null) {
+            return ResponseEntity.badRequest().build();
         }
 
         analysisJobService.markCompleted(jobId, dto);
