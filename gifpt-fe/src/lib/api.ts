@@ -1,3 +1,8 @@
+async function throwResponseError(res: Response, fallback: string): Promise<never> {
+  const body = await res.json().catch(() => ({}))
+  throw new Error(body?.error ?? body?.message ?? fallback)
+}
+
 export type AnimateHitResponse = {
   status: 'SUCCESS'
   videoUrl: string
@@ -62,7 +67,7 @@ export async function fetchJobStatus(jobId: number, token?: string | null): Prom
     credentials: 'include',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch job status')
+  if (!res.ok) await throwResponseError(res, 'Failed to fetch job status')
   return res.json()
 }
 
@@ -121,7 +126,7 @@ export async function createWorkspace(
     headers: authHeaders(token),
     body: form,
   })
-  if (!res.ok) throw new Error('Failed to create workspace')
+  if (!res.ok) await throwResponseError(res, 'Failed to create workspace')
   return res.json()
 }
 
@@ -135,7 +140,7 @@ export async function createWorkspaceFromFile(
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create workspace from file')
+  if (!res.ok) await throwResponseError(res, 'Failed to create workspace from file')
   return res.json()
 }
 
@@ -148,7 +153,7 @@ export async function fetchWorkspaces(
     credentials: 'include',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch workspaces')
+  if (!res.ok) await throwResponseError(res, 'Failed to fetch workspaces')
   return res.json()
 }
 
@@ -157,7 +162,7 @@ export async function fetchWorkspace(id: number, token: string): Promise<Workspa
     credentials: 'include',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to fetch workspace')
+  if (!res.ok) await throwResponseError(res, 'Failed to fetch workspace')
   return res.json()
 }
 
@@ -172,7 +177,7 @@ export async function chatOnWorkspace(
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   })
-  if (!res.ok) throw new Error('Failed to send chat message')
+  if (!res.ok) await throwResponseError(res, 'Failed to send chat message')
   return res.json()
 }
 
@@ -182,7 +187,7 @@ export async function deleteWorkspace(id: number, token: string): Promise<void> 
     credentials: 'include',
     headers: authHeaders(token),
   })
-  if (!res.ok) throw new Error('Failed to delete workspace')
+  if (!res.ok) await throwResponseError(res, 'Failed to delete workspace')
 }
 
 // ── File upload ───────────────────────────────────────────────────────────────
@@ -197,6 +202,6 @@ export async function uploadFile(file: File, prompt: string, token: string): Pro
     headers: authHeaders(token),
     body: form,
   })
-  if (!res.ok) throw new Error('Failed to upload file')
+  if (!res.ok) await throwResponseError(res, 'Failed to upload file')
   return res.json()
 }

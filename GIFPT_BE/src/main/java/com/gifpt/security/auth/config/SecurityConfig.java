@@ -59,12 +59,11 @@ public class SecurityConfig {
           "/swagger-ui/**",
           "/swagger-ui.html",
           "/api/v1/auth/**",
-          "/api/v1/analysis/*/complete",
-          "/api/v1/analysis/**",
           "/v1/auth/**",
-          "/api/v1/workspaces/**",
+          "/api/v1/analysis/*/complete",
           "/api/v1/animate/**"
         ).permitAll()
+        .requestMatchers("/api/v1/workspaces/**").authenticated()
         .anyRequest().authenticated()
       )
       .httpBasic(basic -> basic.disable())

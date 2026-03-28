@@ -93,8 +93,11 @@ def animate(request):
     if not data and request.body:
         try:
             data = json.loads(request.body.decode("utf-8"))
-        except Exception:
-            pass
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            return Response(
+                {"error": "invalid_json", "detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     if not data.get("job_id") or not data.get("algorithm"):
         missing = [f for f in ("job_id", "algorithm") if not data.get(f)]
@@ -148,6 +151,7 @@ def chat(request):
             model="gpt-4o-mini",
             temperature=0.3,
             messages=messages,
+            timeout=30,
         )
         reply = completion.choices[0].message.content
         return Response({"reply": reply, "session_id": data.get("session_id", "")})
