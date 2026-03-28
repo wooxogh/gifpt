@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Link, useRouter } from '@/i18n/navigation'
 import Nav from '@/components/layout/Nav'
@@ -235,77 +234,8 @@ export default function SignupPage() {
               </button>
             </form>
 
-            <div className="relative my-8">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-[rgba(70,69,84,0.15)]" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase tracking-widest">
-                <span
-                  className="px-4"
-                  style={{ background: 'rgba(28, 27, 27, 0.95)', color: 'var(--text-muted)' }}
-                >
-                  {t('or_continue_with')}
-                </span>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                className="flex items-center justify-center space-x-2 py-3 rounded-lg transition-colors duration-200"
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid rgba(70,69,84,0.2)',
-                }}
-              >
-                <Image
-                  alt="Google"
-                  className="w-5 h-5 grayscale opacity-70"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqQ3r_ExIMIDRQIHcD9utquFnnq9IJpiQx9rbxFwZesalCHm4GaDWSftJKT2nkJxWdPy3HPrwE8SXNKRp_ZIc-tyFxz2oAx8NsdZIpYu1hW_wxsp5evCtrVj0fcsrasXeJhPyIBjzGKeRi0zMG_pLxkpUWfRBQh3FEzTp62XcejJORphwRAChAHjy4pN9N1byfMjNPTeLHbk9L8Z8vwHcqJ9SVxT2MtLewjWNY8kNKVEQVX6lguk7KiniJJeR6sg5kX4DHR2BZRxE"
-                  width={20}
-                  height={20}
-                  unoptimized
-                />
-                <span
-                  className="text-xs font-medium"
-                  style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-space-grotesk)' }}
-                >
-                  Google
-                </span>
-              </button>
 
-              <button
-                type="button"
-                className="flex items-center justify-center space-x-2 py-3 rounded-lg transition-colors duration-200"
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid rgba(70,69,84,0.2)',
-                }}
-              >
-                <span className="material-symbols-outlined text-on-surface text-xl">terminal</span>
-                <span
-                  className="text-xs font-medium"
-                  style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-space-grotesk)' }}
-                >
-                  GitHub
-                </span>
-              </button>
-            </div>
-
-            <p
-              className="text-center mt-10 text-xs leading-6"
-              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-inter)' }}
-            >
-              By joining, you agree to our{' '}
-              <button type="button" className="text-primary hover:underline underline-offset-4">
-                Terms of Service
-              </button>{' '}
-              and{' '}
-              <button type="button" className="text-primary hover:underline underline-offset-4">
-                Privacy Policy
-              </button>
-              .
-            </p>
           </div>
 
           <div className="text-center mt-8">

@@ -37,6 +37,8 @@ gifpt:
     secret: ${JWT_SECRET:fqoidjioqwjfoidoivbnqowidfiojqoiwbiowqdfoiwqjfoidjoijoqfiwd}
     expires-in-ms: 3600000           # 1시간
     refresh-expires-in-ms: 1209600000  # 14일
+  callback:
+    allow-unsigned: true
 
 # ---- 권장: 새 코드에선 @ConfigurationProperties(prefix="security.jwt")로 바인딩 ----
 security:

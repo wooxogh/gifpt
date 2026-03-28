@@ -22,16 +22,15 @@ export default function Footer() {
           className="flex items-center space-x-8 text-xs uppercase tracking-widest"
           style={{ fontFamily: 'var(--font-inter)' }}
         >
-          {['Docs', 'GitHub', 'Discord'].map((link) => (
-            <button
-              key={link}
-              type="button"
-              className="bg-transparent border-0 p-0 transition-colors duration-200 hover:text-secondary focus-visible:text-secondary cursor-pointer"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {link}
-            </button>
-          ))}
+          <a
+            href="https://github.com/wooxogh/gifpt"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors duration-200 hover:text-secondary focus-visible:text-secondary focus-visible:underline focus-visible:outline-none"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            GitHub
+          </a>
         </div>
       </div>
     </footer>
