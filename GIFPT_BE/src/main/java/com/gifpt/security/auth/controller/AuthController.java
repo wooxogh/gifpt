@@ -131,6 +131,9 @@ public class AuthController {
 
   @GetMapping("/me")
   public ResponseEntity<?> me(Authentication auth) {
+    if (auth == null) {
+      return ResponseEntity.status(401).body(Map.of("error", "unauthorized"));
+    }
     return ResponseEntity.ok(Map.of("email", auth.getName()));
   }
 }

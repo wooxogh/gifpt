@@ -20,6 +20,7 @@ services:
       GIFPT_RESULT_DIR: /data/results
 
       GIFPT_JWT_SECRET: ${GIFPT_JWT_SECRET}
+      GIFPT_CALLBACK_SECRET: ${GIFPT_CALLBACK_SECRET}
 
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -52,6 +53,7 @@ services:
       GIFPT_UPLOAD_DIR: /data/uploads
       GIFPT_RESULT_DIR: /data/results
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GIFPT_CALLBACK_SECRET: ${GIFPT_CALLBACK_SECRET}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_QUEUE: gifpt.default
@@ -82,6 +84,7 @@ services:
       GIFPT_RESULT_DIR: /data/results
 
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GIFPT_CALLBACK_SECRET: ${GIFPT_CALLBACK_SECRET}
 
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
