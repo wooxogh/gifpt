@@ -10,7 +10,7 @@ DOMAIN_SYSTEM_PROMPT = """
 You are a strict domain classifier for algorithm / AI descriptions.
 
 You MUST output ONLY JSON of the form:
-{"domain": "<one_of_allowed>"}
+{"domain": "<one_of_allowed>", "is_3d": <true_or_false>}
 
 Allowed domains:
 - "cnn_param"
@@ -39,12 +39,24 @@ Classification rules:
 - If mentions: derivatives, integrals, probability, expectation, variance, matrices → "math"
 - Otherwise → "generic"
 
+3D detection rules (set is_3d to true when):
+- Explicitly requests 3D visualization, 3D animation, or three-dimensional view
+- Describes spatial/volumetric structures (3D convolution, 3D grid, surface plot, voxel)
+- Describes neural network layer stacks that benefit from depth perspective (multi-layer CNN feature maps, encoder-decoder architecture)
+- Describes 3D graph/network structures, molecular structures, or spatial algorithms
+- Math functions with 2 input variables (z=f(x,y), surface, contour)
+- Otherwise → false
+
 Return ONLY JSON. No extra text, no comments.
 """
 
-def call_llm_detect_domain(user_text: str) -> str:
-    """LLM이 사용자 입력을 보고 도메인만 분류하게 하는 전용 함수."""
-    prompt = f'Text:\n"""\n{user_text}\n"""\n\nReturn JSON with the "domain" field only.'
+def call_llm_detect_domain(user_text: str) -> tuple[str, bool]:
+    """Classify user input into a domain and detect 3D intent.
+
+    Returns:
+        (domain, is_3d) tuple — e.g. ("graph_traversal", False)
+    """
+    prompt = f'Text:\n"""\n{user_text}\n"""\n\nReturn JSON with "domain" and "is_3d" fields.'
     resp = client.chat.completions.create(
         model="gpt-4.1-mini",
         response_format={"type": "json_object"},
@@ -55,7 +67,8 @@ def call_llm_detect_domain(user_text: str) -> str:
     )
     data = json.loads(resp.choices[0].message.content)
     domain = data.get("domain", "generic")
-    return domain
+    is_3d = bool(data.get("is_3d", False))
+    return domain, is_3d
 
 def build_sorting_trace_ir(user_text: str) -> dict:
     """
