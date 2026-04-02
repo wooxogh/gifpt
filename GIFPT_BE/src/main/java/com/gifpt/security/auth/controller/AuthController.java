@@ -2,6 +2,7 @@ package com.gifpt.security.auth.controller;
 
 import com.gifpt.user.domain.User;
 import com.gifpt.user.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;
@@ -132,7 +133,7 @@ public class AuthController {
   @GetMapping("/me")
   public ResponseEntity<?> me(Authentication auth) {
     if (auth == null) {
-      return ResponseEntity.status(401).body(Map.of("error", "unauthorized"));
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
     }
     return ResponseEntity.ok(Map.of("email", auth.getName()));
   }

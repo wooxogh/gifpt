@@ -67,7 +67,13 @@ def call_llm_detect_domain(user_text: str) -> tuple[str, bool]:
     )
     data = json.loads(resp.choices[0].message.content)
     domain = data.get("domain", "generic")
-    is_3d = bool(data.get("is_3d", False))
+    raw_is_3d = data.get("is_3d", False)
+    if isinstance(raw_is_3d, bool):
+        is_3d = raw_is_3d
+    elif isinstance(raw_is_3d, str):
+        is_3d = raw_is_3d.strip().lower() == "true"
+    else:
+        is_3d = bool(raw_is_3d)
     return domain, is_3d
 
 def build_sorting_trace_ir(user_text: str) -> dict:
