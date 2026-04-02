@@ -55,29 +55,40 @@ class ExampleLibrary:
             )
 
     def get_examples(
-        self, pattern_type: Optional[PatternType] = None, top_k: int = 3
+        self,
+        pattern_type: Optional[PatternType] = None,
+        top_k: int = 3,
+        is_3d: bool = False,
     ) -> list[dict]:
         """Return top-k examples by quality_score for the given pattern_type.
 
-        Falls back to all examples sorted by quality_score when no examples
-        match the requested pattern, or when pattern_type is None.
+        When is_3d=True, prefers 3D examples (ThreeDScene). Falls back to all
+        examples sorted by quality_score when no examples match.
         """
+        pool = list(self._examples)
+
+        # Filter by 3D preference
+        if is_3d:
+            threed_pool = [e for e in pool if e.get("is_3d", False)]
+            if threed_pool:
+                pool = threed_pool
+
         if pattern_type is not None:
-            pattern_val = pattern_type.value  # e.g. "sequence"
+            pattern_val = pattern_type.value
             matching = [
-                e
-                for e in self._examples
+                e for e in pool
                 if e.get("pattern_type", "").lower() == pattern_val
             ]
         else:
-            matching = list(self._examples)
+            matching = list(pool)
 
         matching.sort(key=lambda e: e.get("quality_score", 0), reverse=True)
 
-        if not matching and pattern_type is not None:
-            # Fallback: all examples ranked by quality
+        if not matching:
+            # Fallback: all examples (respecting 3D pref) ranked by quality
+            fallback = pool if pool else self._examples
             all_sorted = sorted(
-                self._examples,
+                fallback,
                 key=lambda e: e.get("quality_score", 0),
                 reverse=True,
             )

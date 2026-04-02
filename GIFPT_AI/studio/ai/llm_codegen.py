@@ -189,7 +189,11 @@ def post_process_manim_code(code: str) -> str:
         code = re.sub(rf'\b{invalid}\b(?=\s*[,\)])', valid, code)
 
     code = re.sub(r'color\s*=\s*["\']#[0-9A-Fa-f]{6}["\']', 'color=BLUE', code)
-    code = re.sub(r'class\s+\w+Scene\s*\(Scene\)', 'class AlgorithmScene(Scene)', code)
+    # Normalize scene class name — preserve ThreeDScene base class
+    if re.search(r'class\s+\w+\s*\(ThreeDScene\)', code):
+        code = re.sub(r'class\s+\w+\s*\(ThreeDScene\)', 'class AlgorithmScene(ThreeDScene)', code)
+    else:
+        code = re.sub(r'class\s+\w+Scene\s*\(Scene\)', 'class AlgorithmScene(Scene)', code)
 
     for name in _UNKNOWN_HELPERS:
         code = re.sub(
