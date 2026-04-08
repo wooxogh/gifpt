@@ -39,12 +39,7 @@ services:
     restart: unless-stopped
 
   django:
-    build:
-      context: ./GIFPT_AI
-      dockerfile: Dockerfile
-      platforms:
-        - linux/amd64
-    image: ehho/gifpt-django:latest   # ✅ AI 웹 서버
+    image: ehho/gifpt-django:latest
     platform: linux/amd64
     environment:
       DJANGO_DEBUG: "0"
@@ -58,7 +53,6 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_QUEUE: gifpt.default
     volumes:
-      - ./GIFPT_AI:/app
       - ./shared/uploads:/data/uploads
       - ./shared/results:/data/results
     depends_on:
@@ -69,33 +63,22 @@ services:
     command: bash -lc "python manage.py migrate && gunicorn GIFPT_AI.wsgi:application --bind 0.0.0.0:8000"
 
   worker:
-    build:
-      context: ./GIFPT_AI
-      dockerfile: Dockerfile
-      platforms:
-        - linux/amd64
     image: ehho/gifpt-worker:latest
     platform: linux/amd64
     environment:
       REDIS_URL: redis://redis:6379/0
       SPRING_CALLBACK_BASE: http://spring:8080
-
       GIFPT_UPLOAD_DIR: /data/uploads
       GIFPT_RESULT_DIR: /data/results
-
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GIFPT_CALLBACK_SECRET: ${GIFPT_CALLBACK_SECRET}
-
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-
       CELERY_QUEUE: gifpt.default
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ap-northeast-1
-
     volumes:
-      - ./GIFPT_AI:/app
       - ./shared/uploads:/data/uploads
       - ./shared/results:/data/results
 
