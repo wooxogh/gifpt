@@ -15,40 +15,48 @@ Your output must be ONLY JSON with these fields:
 - layout: list of { id, shape, position: [x, y], color (optional), label (optional), data (optional), dimensions (optional) }
 - actions: list of { step, target, animation, description }
 
+POSITIONING CONSTRAINTS (CRITICAL — objects outside safe zone will be clipped):
+- Scene frame: horizontal [-7.1, 7.1], vertical [-4.0, 4.0]
+- Safe zone for positions: x in [-5.5, 5.5], y in [-2.8, 2.8]
+- Reserve y = 3.0 to 3.5 for the title (do not place layout items there)
+- Minimum gap between adjacent objects: 1.0 units (center-to-center)
+
+LAYOUT SPACING RULES:
+- For N objects in a horizontal row:
+  start_x = -(N-1) * spacing / 2, then x[i] = start_x + i * spacing
+  where spacing = max(object_width + 0.5, 1.5)
+  Ensure the rightmost x + object_half_width < 5.5
+- For vertical arrangements: same logic on y axis, ensure y > -2.8
+- When placing a label near an object, offset by 0.4-0.6 units (not on top of it)
+- Matrices/arrays need extra space: estimate width = cols * 0.5, height = rows * 0.5
+
 Shape field:
-- shape is a free string describing the visual primitive. Prefer standard Manim primitives (Rectangle, Circle, Line, Arrow, Dot, Polygon) or semantic tokens like "matrix", "array".
-- If using a non-standard/custom shape, still provide enough context via label/data/dimensions so that downstream renderers can decide how to draw it.
+- Prefer standard Manim primitives: Rectangle, Circle, Line, Arrow, Dot, Polygon
+  or semantic tokens: "matrix", "array"
+- If using a non-standard shape, provide enough context via label/data/dimensions
 
-Guidelines for data field:
-- If using a "matrix" shape: provide 2D array of values, e.g., "data": [[1,2,3], [4,5,6]]
-- If using an "array" shape: provide 1D array of values, e.g., "data": [10, 20, 30, 40]
-- For operations: provide formula, e.g., "data": "Q·K^T / √d_k"
-- Add "dimensions" for size labels, e.g., "dimensions": "3×3" or "dimensions": "(seq_len, d_model)"
+Data field guidelines:
+- "matrix" shape: 2D array, e.g., "data": [[1,2,3], [4,5,6]]
+- "array" shape: 1D array, e.g., "data": [10, 20, 30, 40]
+- Operations: formula string, e.g., "data": "Q·K^T / √d_k"
+- Add "dimensions" for size labels, e.g., "3×3" or "(seq_len, d_model)"
 
-Guidelines for labels:
-- Add "label" field for identifiers (e.g., "Input", "Q", "K", "V", "Attention Scores")
-- Skip "label" field for purely decorative elements
-
-Guidelines by domain:
-- cache: S-FIFO, M-FIFO queues with item values shown
-- cnn_param: matrices with actual values/dimensions (3×3 kernel, 4×4 input, etc.)
-- sorting: array with values to be sorted [5, 2, 8, 1, 9]
-- attention: Q, K, V matrices with dimensions shown, attention scores as heatmap
-- dynamic_programming: DP table as matrix with computed values
+Label guidelines:
+- Add "label" for identifiers (e.g., "Input", "Q", "K", "V", "Output")
+- Skip "label" for purely decorative elements
 
 Animation types: "fade_in", "move", "highlight", "swap", "fade_out"
-Coordinates in range [-5, 5]
 Output valid JSON only.
 
 Example output:
 {
   "metadata": {"domain": "cnn_param", "title": "CNN Convolution"},
   "layout": [
-    {"id": "input", "shape": "matrix", "position": [-4, 0], "color": "blue", 
+    {"id": "input", "shape": "matrix", "position": [-4, 0], "color": "blue",
      "label": "Input", "data": [[1,2,3,4], [5,6,7,8], [9,10,11,12], [13,14,15,16]], "dimensions": "4×4"},
-    {"id": "kernel", "shape": "matrix", "position": [0, 0], "color": "red", 
+    {"id": "kernel", "shape": "matrix", "position": [0, 0], "color": "red",
      "label": "Kernel", "data": [[1,0,-1], [1,0,-1], [1,0,-1]], "dimensions": "3×3"},
-    {"id": "output", "shape": "matrix", "position": [4, 0], "color": "green", 
+    {"id": "output", "shape": "matrix", "position": [4, 0], "color": "green",
      "label": "Output", "dimensions": "2×2"}
   ],
   "actions": [
