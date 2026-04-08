@@ -263,6 +263,36 @@ IMPORTANT RULES:
 """
 
 
+def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> str:
+    """Regenerate Manim code with Vision QA feedback injected.
+
+    Instead of blindly retrying codegen, this feeds the specific quality issues
+    (overlapping elements, unreadable text, missing steps, etc.) into the prompt
+    so the LLM can address them directly.
+    """
+    issues_text = "\n".join(f"- {issue}" for issue in qa_issues)
+    prompt = build_prompt_codegen(anim_ir)
+    prompt += (
+        f"\n\nIMPORTANT — The previous rendering had these quality issues detected by QA:\n"
+        f"{issues_text}\n\n"
+        f"Fix ALL of these issues in your code. Specifically:\n"
+        f"- If elements overlap: spread layout positions further apart, use smaller font sizes\n"
+        f"- If text is unreadable: increase font size, use higher contrast colors\n"
+        f"- If steps are missing: ensure every operation in the IR is animated\n"
+        f"- If animation is static: add more intermediate animations and transitions\n"
+        f"Output ONLY the corrected Python code."
+    )
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        timeout=90,
+    )
+    return post_process_manim_code(resp.choices[0].message.content)
+
+
 def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: str) -> str:
     """Ask LLM to fix Manim code based on a render error.
 
