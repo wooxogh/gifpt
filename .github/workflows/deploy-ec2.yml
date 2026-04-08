@@ -42,6 +42,7 @@ jobs:
           script: |
             set -euxo pipefail
             cd ~/GIFPT-server
+            git pull origin dev
             mkdir -p shared/uploads shared/results data/mysql nginx/conf.d nginx/certbot/www nginx/letsencrypt
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             docker compose pull
