@@ -137,20 +137,21 @@ public class AnimateController {
         log.info("[ANIMATE] dispatching job_id={} slug={} hasPrompt={} userId={}",
                 job.getId(), slug, hasPrompt, user.getId());
 
-        // Build dispatch body — include prompt only when provided
-        java.util.Map<String, Object> dispatchBody = new java.util.HashMap<>();
-        dispatchBody.put("job_id", job.getId());
-        dispatchBody.put("algorithm", algorithm);
+        // Build dispatch body as JSON string — avoids RestClient serialization issues
+        StringBuilder jsonBody = new StringBuilder();
+        jsonBody.append("{\"job_id\":").append(job.getId());
+        jsonBody.append(",\"algorithm\":\"").append(algorithm.replace("\"", "\\\"")).append("\"");
         if (hasPrompt) {
-            dispatchBody.put("prompt", prompt);
+            jsonBody.append(",\"prompt\":\"").append(prompt.replace("\"", "\\\"").replace("\n", "\\n")).append("\"");
         }
+        jsonBody.append("}");
 
         try {
             RestClient restClient = restClientBuilder.baseUrl(aiServerBaseUrl).build();
             restClient.post()
                     .uri("/animate")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(dispatchBody)
+                    .body(jsonBody.toString())
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception e) {
