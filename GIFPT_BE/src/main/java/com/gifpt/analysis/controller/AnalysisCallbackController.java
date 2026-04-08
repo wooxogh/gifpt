@@ -1,9 +1,7 @@
-// src/main/java/com/gifpt/analysis/controller/AnalysisCallbackController.java
 package com.gifpt.analysis.controller;
 
 import com.gifpt.analysis.dto.AnalysisCallbackDTO;
 import com.gifpt.analysis.service.AnalysisJobService;
-import com.gifpt.workspace.service.WorkspaceService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,18 +12,15 @@ import org.springframework.web.bind.annotation.*;
 public class AnalysisCallbackController {
 
     private final AnalysisJobService analysisJobService;
-    private final WorkspaceService workspaceService;
     private final String callbackSecret;
     private final boolean allowUnsignedCallbacks;
 
     public AnalysisCallbackController(
             AnalysisJobService analysisJobService,
-            WorkspaceService workspaceService,
             @Value("${gifpt.callback.secret:}") String callbackSecret,
             @Value("${gifpt.callback.allow-unsigned:false}") boolean allowUnsignedCallbacks
     ) {
         this.analysisJobService = analysisJobService;
-        this.workspaceService = workspaceService;
         this.callbackSecret = callbackSecret;
         this.allowUnsignedCallbacks = allowUnsignedCallbacks;
 
@@ -40,7 +35,6 @@ public class AnalysisCallbackController {
             @RequestHeader(value = "X-Callback-Secret", required = false) String secret,
             @RequestBody AnalysisCallbackDTO dto
     ) {
-        // 기본적으로 시크릿을 강제하고, 로컬 개발에서만 명시적으로 완화 가능
         if (!allowUnsignedCallbacks && !callbackSecret.equals(secret)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -50,13 +44,6 @@ public class AnalysisCallbackController {
         }
 
         analysisJobService.markCompleted(jobId, dto);
-
-        workspaceService.onAnalysisCompleted(
-                jobId,
-                dto.status().name(),
-                dto.summary(),
-                dto.resultUrl()
-        );
 
         return ResponseEntity.ok().build();
     }

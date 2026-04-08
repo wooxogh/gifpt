@@ -3,6 +3,7 @@ package com.gifpt.security.auth.config;
 import com.gifpt.security.auth.jwt.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -63,6 +64,7 @@ public class SecurityConfig {
           "/api/v1/analysis/*/complete",
           "/api/v1/animate/**"
         ).permitAll()
+        .requestMatchers(HttpMethod.GET, "/api/v1/gallery", "/api/v1/gallery/").permitAll()
         .requestMatchers("/api/v1/workspaces/**").authenticated()
         .anyRequest().authenticated()
       )

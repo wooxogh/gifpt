@@ -263,6 +263,31 @@ IMPORTANT RULES:
 """
 
 
+def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: str) -> str:
+    """Ask LLM to fix Manim code based on a render error.
+
+    Used by the self-healing codegen loop: when run_manim_code raises
+    ManimRenderError, we send the broken code + error back to the LLM.
+    """
+    fix_prompt = (
+        f"The following Manim code failed to render.\n\n"
+        f"Error type: {error_type}\n"
+        f"Error output (last 1500 chars):\n```\n{stderr_snippet[-1500:]}\n```\n\n"
+        f"Original code:\n```python\n{original_code}\n```\n\n"
+        f"Fix the code so it renders successfully. "
+        f"Keep the same visual intent. Output ONLY the corrected Python code, no markdown."
+    )
+    resp = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": fix_prompt},
+        ],
+        timeout=60,
+    )
+    return post_process_manim_code(resp.choices[0].message.content)
+
+
 def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
     """Generate Manim code for a named algorithm using few-shot examples.
 

@@ -112,11 +112,25 @@ public class AnimateController {
                     .body(Map.of("error", "login_required", "message", "로그인 후 생성 가능"));
         }
 
+        // Dedup: reuse existing in-progress job for same slug (name-only requests)
+        if (!hasPrompt) {
+            var existing = analysisJobRepository.findFirstByAlgorithmSlugAndStatusInOrderByIdDesc(
+                    slug, java.util.List.of(AnalysisStatus.PENDING, AnalysisStatus.RUNNING));
+            if (existing.isPresent()) {
+                log.info("[ANIMATE] dedup HIT slug={} existing_job_id={}", slug, existing.get().getId());
+                return ResponseEntity.status(HttpStatus.ACCEPTED)
+                        .header("X-Cache", "DEDUP")
+                        .body(Map.of("status", existing.get().getStatus().name(),
+                                     "jobId", existing.get().getId()));
+            }
+        }
+
         // Authenticated → create job + dispatch
         AnalysisJob job = AnalysisJob.builder()
                 .userId(user.getId())
                 .status(AnalysisStatus.PENDING)
                 .prompt(hasPrompt ? prompt : algorithm)
+                .algorithmSlug(hasPrompt ? null : slug)
                 .build();
         analysisJobRepository.save(job);
 

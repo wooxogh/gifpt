@@ -71,30 +71,14 @@ export async function fetchJobStatus(jobId: number, token?: string | null): Prom
   return res.json()
 }
 
-// ── Workspace types ──────────────────────────────────────────────────────────
+// ── Gallery types ────────────────────────────────────────────────────────────
 
-export type WorkspaceStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED'
-
-export type WorkspaceSummary = {
+export type GalleryItem = {
   id: number
-  title: string
-  status: WorkspaceStatus
-  summary: string | null
-  videoUrl: string | null
+  algorithm: string
+  algorithmSlug: string
+  videoUrl: string
   createdAt: string
-  updatedAt: string
-}
-
-export type WorkspaceDetail = {
-  id: number
-  title: string
-  prompt: string
-  pdfPath: string
-  summary: string | null
-  videoUrl: string | null
-  status: WorkspaceStatus
-  createdAt: string
-  updatedAt: string
 }
 
 export type PageResponse<T> = {
@@ -105,103 +89,28 @@ export type PageResponse<T> = {
   size: number
 }
 
-export type FileUploadResponse = {
-  fileId: number
-  fileName: string
-}
+// ── Gallery API ──────────────────────────────────────────────────────────────
 
-// ── Workspace API ─────────────────────────────────────────────────────────────
-
-export async function createWorkspace(
-  data: { title: string; prompt: string; pdf: File },
-  token: string,
-): Promise<WorkspaceDetail> {
-  const form = new FormData()
-  form.append('title', data.title)
-  form.append('prompt', data.prompt)
-  form.append('pdf', data.pdf)
-  const res = await fetch('/api/v1/workspaces', {
-    method: 'POST',
+export async function fetchGalleryTrending(
+  page = 0,
+  size = 12,
+): Promise<PageResponse<GalleryItem>> {
+  const res = await fetch(`/api/v1/gallery?page=${page}&size=${size}`, {
     credentials: 'include',
-    headers: authHeaders(token),
-    body: form,
   })
-  if (!res.ok) await throwResponseError(res, 'Failed to create workspace')
+  if (!res.ok) await throwResponseError(res, 'Failed to fetch gallery')
   return res.json()
 }
 
-export async function createWorkspaceFromFile(
-  data: { title: string; fileId: number; userPrompt: string },
-  token: string,
-): Promise<WorkspaceDetail> {
-  const res = await fetch('/api/v1/workspaces/from-file', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) await throwResponseError(res, 'Failed to create workspace from file')
-  return res.json()
-}
-
-export async function fetchWorkspaces(
+export async function fetchGalleryMine(
   token: string,
   page = 0,
   size = 12,
-): Promise<PageResponse<WorkspaceSummary>> {
-  const res = await fetch(`/api/v1/workspaces?page=${page}&size=${size}&sort=createdAt,DESC`, {
+): Promise<PageResponse<GalleryItem>> {
+  const res = await fetch(`/api/v1/gallery/mine?page=${page}&size=${size}`, {
     credentials: 'include',
     headers: authHeaders(token),
   })
-  if (!res.ok) await throwResponseError(res, 'Failed to fetch workspaces')
-  return res.json()
-}
-
-export async function fetchWorkspace(id: number, token: string): Promise<WorkspaceDetail> {
-  const res = await fetch(`/api/v1/workspaces/${id}`, {
-    credentials: 'include',
-    headers: authHeaders(token),
-  })
-  if (!res.ok) await throwResponseError(res, 'Failed to fetch workspace')
-  return res.json()
-}
-
-export async function chatOnWorkspace(
-  id: number,
-  message: string,
-  token: string,
-): Promise<{ answer: string }> {
-  const res = await fetch(`/api/v1/workspaces/${id}/chat`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  })
-  if (!res.ok) await throwResponseError(res, 'Failed to send chat message')
-  return res.json()
-}
-
-export async function deleteWorkspace(id: number, token: string): Promise<void> {
-  const res = await fetch(`/api/v1/workspaces/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: authHeaders(token),
-  })
-  if (!res.ok) await throwResponseError(res, 'Failed to delete workspace')
-}
-
-// ── File upload ───────────────────────────────────────────────────────────────
-
-export async function uploadFile(file: File, prompt: string, token: string): Promise<FileUploadResponse> {
-  const form = new FormData()
-  form.append('file', file)
-  form.append('prompt', prompt)
-  const res = await fetch('/api/v1/file/upload', {
-    method: 'POST',
-    credentials: 'include',
-    headers: authHeaders(token),
-    body: form,
-  })
-  if (!res.ok) await throwResponseError(res, 'Failed to upload file')
+  if (!res.ok) await throwResponseError(res, 'Failed to fetch my gallery')
   return res.json()
 }
