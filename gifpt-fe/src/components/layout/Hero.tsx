@@ -80,7 +80,7 @@ export default function Hero() {
   return (
     <>
       {/* ── Hero section ── */}
-      <section className="relative min-h-screen pt-20 flex flex-col items-center justify-center overflow-hidden">
+      <section className="relative min-h-screen pt-5 flex flex-col items-center justify-center overflow-hidden">
         {/* Background elements */}
         <div className="absolute inset-0 pointer-events-none">
           <div
@@ -98,26 +98,6 @@ export default function Hero() {
 
         {/* Hero content */}
         <div className="relative z-10 w-full max-w-4xl px-8 text-center">
-          {/* Badge */}
-          <div
-            className="inline-flex items-center space-x-2 px-3 py-1 rounded-full mb-8"
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid rgba(70,69,84,0.15)',
-            }}
-          >
-            <span
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{ background: 'var(--secondary)' }}
-            />
-            <span
-              className="text-xs uppercase tracking-widest"
-              style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--text-secondary)' }}
-            >
-              Celestial Workshop v2.0
-            </span>
-          </div>
-
           {/* Headline */}
           <h1
             className="hero-text-gradient font-black text-5xl md:text-7xl lg:text-8xl tracking-tighter mb-8 leading-tight"
@@ -388,19 +368,19 @@ export default function Hero() {
       {/* ── Bento grid ── */}
       <section className="w-full max-w-screen-2xl mx-auto px-8 mt-8 mb-24">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1 — Sorting Visualizer (col-span-2) */}
+          {/* Card 1 — Algorithm Visualization (col-span-2) */}
           <div
             className="md:col-span-2 relative overflow-hidden rounded-xl p-8 group"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
             <span className="text-xs uppercase tracking-widest" style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--primary)' }}>
-              Featured
+              Core Feature
             </span>
             <h3 className="text-3xl font-bold mt-4 mb-2" style={{ fontFamily: 'var(--font-manrope)' }}>
-              Sorting Visualizer
+              Any Algorithm, Animated
             </h3>
             <p style={{ color: 'var(--text-secondary)', maxWidth: '28rem' }}>
-              Experience the rhythmic dance of data as it finds its place in the cosmic order.
+              Type any algorithm name and get a step-by-step Manim animation generated in under a minute.
             </p>
 
             {/* Algorithm bar chart visual */}
@@ -421,7 +401,7 @@ export default function Hero() {
             </div>
           </div>
 
-          {/* Card 2 — AI Render Engine */}
+          {/* Card 2 — AI Code Generation */}
           <div
             className="rounded-xl p-8 flex flex-col justify-between group"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
@@ -434,26 +414,15 @@ export default function Hero() {
                 <span className="material-symbols-outlined" style={{ color: 'var(--secondary)' }}>auto_awesome</span>
               </div>
               <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'var(--font-manrope)' }}>
-                AI Render Engine
+                GPT-Powered Rendering
               </h3>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Generates Manim code from natural language prompts instantly.
+                GPT analyzes your algorithm and generates Manim visualization code with self-healing retry on render failures.
               </p>
-            </div>
-            <div
-              className="mt-8 pt-8 flex items-center justify-between"
-              style={{ borderTop: '1px solid rgba(70,69,84,0.1)' }}
-            >
-              <span className="text-xs uppercase tracking-widest" style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--secondary)' }}>
-                Learn More
-              </span>
-              <span className="material-symbols-outlined text-sm transition-transform group-hover:translate-x-1" style={{ color: 'var(--text-muted)' }}>
-                arrow_forward
-              </span>
             </div>
           </div>
 
-          {/* Card 3 — Live Debugger */}
+          {/* Card 3 — Describe Mode */}
           <div
             className="rounded-xl p-8 flex flex-col justify-between group"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
@@ -463,29 +432,18 @@ export default function Hero() {
                 className="w-12 h-12 rounded-lg flex items-center justify-center mb-6"
                 style={{ background: 'rgba(192,193,255,0.1)' }}
               >
-                <span className="material-symbols-outlined" style={{ color: 'var(--primary)' }}>terminal</span>
+                <span className="material-symbols-outlined" style={{ color: 'var(--primary)' }}>code</span>
               </div>
               <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'var(--font-manrope)' }}>
-                Live Debugger
+                Describe Mode
               </h3>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Step through your algorithm frame-by-frame with cinematic precision.
+                Paste pseudocode or a detailed description of custom logic to generate animations beyond well-known algorithms.
               </p>
-            </div>
-            <div
-              className="mt-8 pt-8 flex items-center justify-between"
-              style={{ borderTop: '1px solid rgba(70,69,84,0.1)' }}
-            >
-              <span className="text-xs uppercase tracking-widest" style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--primary)' }}>
-                View Docs
-              </span>
-              <span className="material-symbols-outlined text-sm transition-transform group-hover:translate-x-1" style={{ color: 'var(--text-muted)' }}>
-                arrow_forward
-              </span>
             </div>
           </div>
 
-          {/* Card 4 — Export to Cinematic 4K (col-span-2) */}
+          {/* Card 4 — Gallery & Cache (col-span-2) */}
           <div
             className="md:col-span-2 rounded-xl overflow-hidden relative group"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
@@ -493,13 +451,13 @@ export default function Hero() {
             <div className="flex flex-col md:flex-row h-full">
               <div className="p-8 flex flex-col justify-center flex-1">
                 <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: 'var(--font-manrope)' }}>
-                  Export to Cinematic 4K
+                  Gallery & Smart Cache
                 </h3>
                 <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-                  High-fidelity exports for presentations, social media, or educational content. Professional quality, zero setup.
+                  Browse community-generated animations or revisit your own. Previously generated algorithms are cached on S3 for instant playback.
                 </p>
                 <div className="flex space-x-4">
-                  {['H.264/HEVC', 'Transparent BG'].map((feat) => (
+                  {['Instant Replay', 'S3 Cached'].map((feat) => (
                     <div key={feat} className="flex items-center space-x-1">
                       <span className="material-symbols-outlined text-lg" style={{ color: 'var(--primary)', fontSize: '18px' }}>check_circle</span>
                       <span className="text-xs uppercase tracking-tighter" style={{ fontFamily: 'var(--font-space-grotesk)', color: 'var(--text-secondary)' }}>
@@ -509,7 +467,7 @@ export default function Hero() {
                   ))}
                 </div>
               </div>
-              {/* Cinematic gradient panel */}
+              {/* Gradient panel */}
               <div
                 className="flex-1 min-h-48 relative overflow-hidden"
                 style={{ background: 'var(--bg-elevated)' }}

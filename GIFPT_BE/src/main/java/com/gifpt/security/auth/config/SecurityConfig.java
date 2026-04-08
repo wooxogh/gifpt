@@ -61,7 +61,8 @@ public class SecurityConfig {
           "/api/v1/auth/**",
           "/v1/auth/**",
           "/api/v1/analysis/*/complete",
-          "/api/v1/animate/**"
+          "/api/v1/animate/**",
+          "/api/v1/gallery"
         ).permitAll()
         .requestMatchers("/api/v1/workspaces/**").authenticated()
         .anyRequest().authenticated()

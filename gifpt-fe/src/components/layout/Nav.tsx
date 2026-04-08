@@ -30,7 +30,7 @@ export default function Nav() {
 
   return (
     <nav
-      className="fixed top-0 w-full z-50 relative"
+      className="fixed top-0 w-full z-50"
       style={{
         background: 'var(--nav-bg)',
         backdropFilter: 'blur(20px)',
