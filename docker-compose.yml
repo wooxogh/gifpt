@@ -24,7 +24,7 @@ services:
 
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ap-northeast-1
+      AWS_REGION: us-east-1
       GIFPT_S3_BUCKET: gifpt-demo
 
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
@@ -77,7 +77,7 @@ services:
       CELERY_QUEUE: gifpt.default
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ap-northeast-1
+      AWS_REGION: us-east-1
     volumes:
       - ./shared/uploads:/data/uploads
       - ./shared/results:/data/results
