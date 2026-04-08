@@ -63,4 +63,3 @@ jobs:
             ${{ matrix.image }}:latest
             ${{ matrix.image }}:${{ github.sha }}
           no-cache: true
-          cache-to: type=registry,ref=${{ matrix.image }}:buildcache,mode=max
