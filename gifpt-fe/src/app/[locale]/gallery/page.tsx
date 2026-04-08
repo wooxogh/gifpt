@@ -290,6 +290,8 @@ function GalleryCard({
           <video
             src={item.videoUrl}
             autoPlay
+            muted
+            playsInline
             controls
             className="w-full h-full object-cover"
             style={{ background: 'var(--bg-elevated)' }}

@@ -269,6 +269,8 @@ def render_video_from_instructions(instructions: str) -> str:
 
         manim_code = None
         video_path = None
+        last_error_type = None
+        last_stderr = None
         max_codegen_attempts = 3
         output_dir = RESULT_DIR / "videos"
         output_name = f"video_{int(time.time())}.mp4"
@@ -278,9 +280,12 @@ def render_video_from_instructions(instructions: str) -> str:
 
             if attempt == 1:
                 code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
-            else:
+            elif last_error_type is not None:
                 # Self-heal: feed the render error back to LLM for correction
                 code_try = call_llm_codegen_fix(manim_code, last_error_type, last_stderr)
+            else:
+                # Previous attempt failed static validation (no render error) — retry codegen
+                code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
 
             issues = validate_manim_code_basic(code_try)
             dur = time.perf_counter() - start
@@ -313,7 +318,7 @@ def render_video_from_instructions(instructions: str) -> str:
                 last_error_type = e.error_type
                 last_stderr = e.stderr_snippet
                 logger.warning("[Render] attempt %d/%d failed: %s — feeding error back to LLM",
-                               attempt, e.error_type, max_codegen_attempts)
+                               attempt, max_codegen_attempts, e.error_type)
                 if attempt == max_codegen_attempts:
                     logger.warning("[Render] all attempts exhausted — rendering fallback")
                     video_path = render_fallback(output_dir, output_name, algorithm_name=domain)

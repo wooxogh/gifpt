@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> {
     Optional<AnalysisJob> findByIdAndUserId(Long id, Long userId);
 
-    Optional<AnalysisJob> findFirstByAlgorithmSlugAndStatusIn(String algorithmSlug, Collection<AnalysisStatus> statuses);
+    Optional<AnalysisJob> findFirstByAlgorithmSlugAndStatusInOrderByIdDesc(String algorithmSlug, Collection<AnalysisStatus> statuses);
 
     // Gallery: all successful algorithm animations (trending)
     Page<AnalysisJob> findByStatusAndAlgorithmSlugIsNotNull(AnalysisStatus status, Pageable pageable);

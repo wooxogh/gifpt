@@ -114,7 +114,7 @@ public class AnimateController {
 
         // Dedup: reuse existing in-progress job for same slug (name-only requests)
         if (!hasPrompt) {
-            var existing = analysisJobRepository.findFirstByAlgorithmSlugAndStatusIn(
+            var existing = analysisJobRepository.findFirstByAlgorithmSlugAndStatusInOrderByIdDesc(
                     slug, java.util.List.of(AnalysisStatus.PENDING, AnalysisStatus.RUNNING));
             if (existing.isPresent()) {
                 log.info("[ANIMATE] dedup HIT slug={} existing_job_id={}", slug, existing.get().getId());
