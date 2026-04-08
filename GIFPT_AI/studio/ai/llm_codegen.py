@@ -104,6 +104,71 @@ Semantic color assignments (use consistently throughout):
 - Secondary: PURPLE_B or TEAL_B
 - Neutral/borders: GRAY or WHITE
 
+PEDAGOGICAL ANIMATION RULES (MOST IMPORTANT — these determine whether the video
+actually explains the concept or just looks like random motion):
+
+1. CAUSE BEFORE EFFECT: Always highlight/indicate the elements being compared or
+   examined BEFORE animating the resulting action (swap, insert, remove).
+   Pattern: Indicate(element) → annotation Text → transform animation → self.wait(0.5)
+   The viewer must see WHY something happens before seeing it happen.
+
+2. ONE OPERATION PER BEAT: Each self.play() call should animate exactly one logical
+   operation. NEVER combine a comparison highlight and a swap in the same self.play().
+   Bad:  self.play(Indicate(a), a.animate.move_to(b_pos))
+   Good: self.play(Indicate(a), Indicate(b))  # compare
+         self.play(a.animate.move_to(b_pos), b.animate.move_to(a_pos))  # swap
+
+3. VISUAL STATE ENCODING: Maintain a consistent color scheme that encodes algorithm
+   state throughout the entire animation. Elements change color to reflect state:
+   - GRAY or WHITE (default): unprocessed / waiting
+   - YELLOW_B: currently being examined / active
+   - RED_B: being swapped / modified / rejected
+   - GREEN_B: finalized / in correct position / accepted
+   Once an element is marked GREEN (finalized), it should STAY green unless the
+   algorithm logically revisits it. State colors are permanent markers, not decoration.
+
+4. INVARIANT MARKERS: Visually show the algorithm's invariant or progress. Examples:
+   - Sorting: a translucent bracket or background behind the sorted portion that grows
+   - Graph: visited nodes stay highlighted, frontier is distinct from unvisited
+   - DP: filled cells stay colored, empty cells remain gray
+   - Cache: occupied slots vs empty slots clearly distinguishable
+   Use a persistent visual element (SurroundingRectangle, Brace, or background color)
+   that grows/moves as the algorithm progresses.
+
+5. PROGRESSIVE PACING: First iteration of any loop should be slow with full annotations.
+   Subsequent iterations accelerate with fewer annotations:
+   - First pass: run_time=1.0-1.5, show comparison text, explain the decision
+   - Middle passes: run_time=0.5-0.8, highlight only, skip redundant text
+   - Final passes: run_time=0.3-0.5, fast to show the algorithm "clicking into place"
+
+6. STEP LABEL: Maintain a persistent label in the top-left corner showing the current
+   phase or iteration (e.g., "Pass 3 of 5", "Inserting key=7", "BFS: depth 2").
+   Update this label at each major step. This anchors the viewer in the algorithm's flow.
+   step_label = Text("Pass 1", font_size=20, color=GRAY).to_corner(UL)
+
+7. PAUSE AFTER STATE CHANGES: Insert self.wait(0.5-1.0) after every significant state
+   transition (swap, insertion, deletion, node visit). The viewer needs processing time.
+
+8. CONCRETE DATA: Use specific small numbers (5-8 elements). Choose values that trigger
+   interesting algorithm behavior:
+   - Sorting: include duplicates, nearly-sorted subsequences — e.g., [38, 27, 43, 3, 9, 82, 10]
+   - Graph: include cycles, varying degree — not just a simple chain
+   - DP: values that show overlapping subproblems clearly
+
+9. DIM THE IRRELEVANT: When the algorithm focuses on a sub-problem (partition in
+   quicksort, subtree in DFS, window in sliding window):
+   - Reduce opacity of elements outside the active range to 0.3
+   - Restore full opacity when scope expands back
+   element.animate.set_opacity(0.3)  # dim
+   element.animate.set_opacity(1.0)  # restore
+
+10. SHOW DATA STRUCTURE FIRST: Always create and display the full data structure
+    (array, graph, tree, table) BEFORE starting the algorithm. The viewer needs spatial
+    context before temporal action. Pattern:
+    - FadeIn the structure with labels
+    - self.wait(1) to let viewer absorb
+    - Then begin algorithm steps
+
 ANIMATION PACING:
 - Use LaggedStart with lag_ratio=0.15-0.3 for staggered reveals (looks professional)
 - Use ReplacementTransform instead of Transform (avoids ghost mobjects)
@@ -117,7 +182,7 @@ CODE RULES:
 - NEVER compare color objects or convert them to strings
 - DO NOT invent custom helper functions not in Manim. Use only built-in mobjects
   and animations (FadeIn, FadeOut, Create, ReplacementTransform, Indicate, MoveToTarget,
-  mobject.animate, LaggedStart, etc.).
+  mobject.animate, LaggedStart, Circumscribe, Flash, etc.).
 - Define class AlgorithmScene(Scene) with construct(self)
 - Output ONLY valid Python code (no markdown, no prose)
 """
@@ -178,9 +243,22 @@ CRITICAL Requirements:
 
 3. **Must visualize every operation sequentially** — no skipping.
 
-4. Add subtle pauses (`self.wait(0.3)`) between major steps.
+4. **Pedagogical structure** (the animation must TEACH, not just move objects):
+   a) Show the full data structure first (FadeIn all elements), then self.wait(1).
+   b) Add a step_label = Text("Step 1: ...", font_size=20, color=GRAY).to_corner(UL)
+      that updates at each major phase of the algorithm.
+   c) For each operation: FIRST highlight/Indicate the elements being examined (cause),
+      THEN animate the resulting action (effect), THEN self.wait(0.5).
+   d) Use color to encode state: YELLOW_B for "currently examining", RED_B for "swapping
+      or modifying", GREEN_B for "finalized / in correct position". Once GREEN, stay GREEN.
+   e) Show the algorithm's invariant: if a region grows (sorted portion, visited set),
+      keep it visually distinct (colored background, bracket, or persistent highlight).
+   f) First iteration of a loop: slow (run_time=1.0+), with annotation text explaining
+      the decision. Later iterations: faster (run_time=0.3-0.5), minimal annotation.
+   g) When focused on a sub-problem, dim elements outside the active range (set_opacity=0.3).
 
-5. End with fade-out of all objects.
+5. End with a completion state: all elements in final state (e.g., all GREEN for sorted),
+   a brief "Done!" or summary label, then self.wait(2).
 
 Output:
 - Write **only Python code** that defines `class AlgorithmScene(Scene)`.
@@ -296,6 +374,23 @@ Allowed: WHITE, BLACK, GRAY/GREY, BLUE(_A-E), RED(_A-E), GREEN(_A-E), YELLOW(_A-
 PURPLE(_A-E), ORANGE, PINK, TEAL(_A-E), GOLD(_A-E), MAROON, LIGHT_GRAY, DARK_GRAY
 FORBIDDEN: LIGHT_BLUE, DARK_BLUE, CYAN, MAGENTA, VIOLET, INDIGO, BROWN
 
+PEDAGOGICAL RULES (the animation must EXPLAIN the algorithm, not just show motion):
+1. CAUSE BEFORE EFFECT: Highlight elements being compared BEFORE animating the
+   resulting action. Pattern: Indicate → annotate → transform → pause.
+2. ONE OPERATION PER BEAT: Each self.play() = one logical operation. Never combine
+   a comparison and a swap in one call.
+3. VISUAL STATE ENCODING: Color = algorithm state, not decoration.
+   GRAY=unprocessed, YELLOW_B=examining, RED_B=swapping, GREEN_B=finalized.
+   Finalized elements STAY their color.
+4. INVARIANT MARKERS: Show algorithm progress visually (sorted portion grows,
+   visited set expands, DP table fills). Use persistent visual elements.
+5. PROGRESSIVE PACING: First loop pass slow (run_time=1.0-1.5) with annotations.
+   Later passes faster (0.3-0.5) with less annotation.
+6. STEP LABEL: Persistent label top-left showing current phase/iteration.
+7. SHOW STRUCTURE FIRST: FadeIn the full data structure, wait(1), then begin.
+8. DIM THE IRRELEVANT: set_opacity(0.3) on elements outside the active range.
+9. CONCRETE DATA: 5-8 specific elements that trigger interesting behavior.
+
 ANIMATION PACING:
 - Use LaggedStart(lag_ratio=0.15-0.3) for staggered reveals
 - Use ReplacementTransform instead of Transform
@@ -406,9 +501,17 @@ def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
     """
     system_prompt = _build_few_shot_system_prompt(examples)
     user_prompt = (
-        f"Generate a complete Manim scene that visually demonstrates the "
-        f"'{algorithm}' algorithm. Animate step-by-step. "
-        f"Follow the style and patterns of the reference examples above. "
+        f"Generate a complete Manim scene that TEACHES the '{algorithm}' algorithm.\n\n"
+        f"Structure your animation as an educational explanation:\n"
+        f"1. Show the full data structure first (FadeIn + wait), with a title.\n"
+        f"2. Add a step_label in the top-left corner that updates each phase.\n"
+        f"3. For each operation: HIGHLIGHT the elements being examined first (cause),\n"
+        f"   THEN animate the action (effect), THEN pause briefly.\n"
+        f"4. Use color to encode state: YELLOW=examining, RED=swapping, GREEN=finalized.\n"
+        f"5. Show the algorithm's invariant growing (sorted region, visited set, etc.).\n"
+        f"6. First loop iteration slow with annotations, later iterations faster.\n"
+        f"7. End with all elements in final state + completion label.\n\n"
+        f"Use 5-8 concrete data elements. Follow the reference examples above.\n"
         f"Output ONLY Python code, no markdown."
     )
     resp = client.chat.completions.create(
