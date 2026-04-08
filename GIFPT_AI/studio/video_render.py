@@ -200,7 +200,6 @@ def render_video_from_instructions(instructions: str) -> str:
     MAX_IR_RETRIES = 2         # 각 IR 단계 재시도
 
     # Persistent state across pipeline attempts for QA feedback loop
-    prev_anim_ir = None
     prev_qa_issues: list[str] = []
 
     for pipeline_attempt in range(1, MAX_PIPELINE_ATTEMPTS + 1):
@@ -239,8 +238,6 @@ def render_video_from_instructions(instructions: str) -> str:
             logger.warning("[Anim IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
             if ir_try == MAX_IR_RETRIES:
                 logger.warning("[Anim IR] proceeding with last attempt despite issues")
-
-        prev_anim_ir = anim_ir
 
         # ── Step 3: Codegen + Render with self-healing ──
         manim_code = None
@@ -308,7 +305,8 @@ def render_video_from_instructions(instructions: str) -> str:
         logger.info("[Render] video at %s", video_path)
 
         # ── Step 4: Vision QA ──
-        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0)
+        qa_domain = anim_ir.get("metadata", {}).get("domain") if isinstance(anim_ir, dict) else None
+        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0, domain=qa_domain)
         logger.info("[Vision QA] score=%.1f passed=%s summary=%s",
                     qa_result["score"], qa_result["passed"], qa_result["summary"])
 
@@ -317,8 +315,16 @@ def render_video_from_instructions(instructions: str) -> str:
                 logger.info("[Vision QA] PASSED (score=%.1f) — returning video", qa_result["score"])
             return video_path
 
-        # QA failed — save issues for feedback loop on next attempt
-        prev_qa_issues = qa_result.get("issues", [])
+        # QA failed — normalize issues for stable QA feedback loop
+        raw_issues = qa_result.get("issues", [])
+        if isinstance(raw_issues, list):
+            prev_qa_issues = [str(issue).strip() for issue in raw_issues if str(issue).strip()]
+        elif isinstance(raw_issues, str):
+            normalized = raw_issues.strip()
+            prev_qa_issues = [normalized] if normalized else []
+        else:
+            prev_qa_issues = []
+
         if pipeline_attempt < MAX_PIPELINE_ATTEMPTS:
             logger.warning("[Vision QA] FAILED (score=%.1f) — retrying with QA feedback. Issues: %s",
                            qa_result["score"], prev_qa_issues)

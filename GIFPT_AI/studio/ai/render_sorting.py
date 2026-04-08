@@ -34,13 +34,19 @@ def render_sorting(trace_ir: dict,
     # Guard: empty or invalid trace crashes Manim (no animations to play)
     if not trace_ir or not isinstance(trace_ir, dict):
         raise EmptySortingTraceError("trace_ir is empty or not a dict")
-    input_array = trace_ir.get("input", {}).get("array", [])
-    trace_steps = trace_ir.get("trace", [])
+
+    input_data = trace_ir.get("input")
+    if not isinstance(input_data, dict):
+        raise EmptySortingTraceError("input is missing or not a dict")
+
+    input_array = input_data.get("array", [])
     if not input_array:
         raise EmptySortingTraceError("input array is empty")
-    if not trace_steps:
+
+    trace_steps = trace_ir.get("trace")
+    if not isinstance(trace_steps, list) or not trace_steps:
         raise EmptySortingTraceError(
-            f"trace is empty for algorithm={trace_ir.get('algorithm', 'unknown')}"
+            f"trace is empty or invalid for algorithm={trace_ir.get('algorithm', 'unknown')}"
         )
 
     trace_json = json.dumps(trace_ir, ensure_ascii=False)

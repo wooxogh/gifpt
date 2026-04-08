@@ -318,7 +318,25 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
     (overlapping elements, unreadable text, missing steps, etc.) into the prompt
     so the LLM can address them directly.
     """
-    issues_text = "\n".join(f"- {issue}" for issue in qa_issues)
+    max_qa_issues = 20
+    if qa_issues is None:
+        normalized_issues = []
+    elif isinstance(qa_issues, str):
+        normalized = qa_issues.strip()
+        normalized_issues = [normalized] if normalized else []
+    else:
+        try:
+            normalized_issues = [
+                str(issue).strip()
+                for issue in qa_issues
+                if str(issue).strip()
+            ]
+        except TypeError:
+            issue_text = str(qa_issues).strip()
+            normalized_issues = [issue_text] if issue_text else []
+
+    normalized_issues = normalized_issues[:max_qa_issues]
+    issues_text = "\n".join(f"- {issue}" for issue in normalized_issues)
     prompt = build_prompt_codegen(anim_ir)
     prompt += (
         f"\n\nIMPORTANT — The previous rendering had these quality issues detected by Vision QA:\n"
