@@ -148,7 +148,7 @@ public class AnimateController {
         try {
             RestClient restClient = restClientBuilder.baseUrl(aiServerBaseUrl).build();
             restClient.post()
-                    .uri("/animate")
+                    .uri("/analyze")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(dispatchBody)
                     .retrieve()
