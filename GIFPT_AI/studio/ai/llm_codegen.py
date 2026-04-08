@@ -189,7 +189,11 @@ def post_process_manim_code(code: str) -> str:
         code = re.sub(rf'\b{invalid}\b(?=\s*[,\)])', valid, code)
 
     code = re.sub(r'color\s*=\s*["\']#[0-9A-Fa-f]{6}["\']', 'color=BLUE', code)
-    code = re.sub(r'class\s+\w+Scene\s*\(Scene\)', 'class AlgorithmScene(Scene)', code)
+    # Normalize scene class name — preserve ThreeDScene base class
+    if re.search(r'class\s+\w+\s*\(ThreeDScene\)', code):
+        code = re.sub(r'class\s+\w+\s*\(ThreeDScene\)', 'class AlgorithmScene(ThreeDScene)', code)
+    else:
+        code = re.sub(r'class\s+\w+Scene\s*\(Scene\)', 'class AlgorithmScene(Scene)', code)
 
     for name in _UNKNOWN_HELPERS:
         code = re.sub(
@@ -257,6 +261,31 @@ IMPORTANT RULES:
 - Output ONLY valid Python code (no markdown, no prose)
 - End with self.wait(2)
 """
+
+
+def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: str) -> str:
+    """Ask LLM to fix Manim code based on a render error.
+
+    Used by the self-healing codegen loop: when run_manim_code raises
+    ManimRenderError, we send the broken code + error back to the LLM.
+    """
+    fix_prompt = (
+        f"The following Manim code failed to render.\n\n"
+        f"Error type: {error_type}\n"
+        f"Error output (last 1500 chars):\n```\n{stderr_snippet[-1500:]}\n```\n\n"
+        f"Original code:\n```python\n{original_code}\n```\n\n"
+        f"Fix the code so it renders successfully. "
+        f"Keep the same visual intent. Output ONLY the corrected Python code, no markdown."
+    )
+    resp = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": fix_prompt},
+        ],
+        timeout=60,
+    )
+    return post_process_manim_code(resp.choices[0].message.content)
 
 
 def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
