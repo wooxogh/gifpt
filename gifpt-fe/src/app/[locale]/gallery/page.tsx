@@ -86,8 +86,8 @@ export default function GalleryPage() {
     <>
       <Nav />
       <main className="flex flex-1 flex-col">
-        {/* ── Hero ── */}
-        <section className="relative pt-20 pb-12 px-8 text-center overflow-hidden">
+        {/* ── Header + Tabs ── */}
+        <section className="relative pt-28 pb-8 px-8 overflow-hidden">
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -95,53 +95,31 @@ export default function GalleryPage() {
                 'radial-gradient(ellipse at 50% 0%, rgba(128, 131, 255, 0.12) 0%, transparent 70%)',
             }}
           />
-          <div className="relative max-w-screen-2xl mx-auto">
-            <div
-              className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-xs uppercase tracking-widest mb-8"
-              style={{
-                background: 'rgba(128,131,255,0.08)',
-                border: '1px solid rgba(128,131,255,0.2)',
-                color: 'var(--primary)',
-                fontFamily: 'var(--font-space-grotesk)',
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
+          <div className="relative max-w-screen-2xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+            <div>
+              <h1
+                className="text-4xl md:text-5xl font-black tracking-tighter mb-3"
+                style={{ fontFamily: 'var(--font-manrope)' }}
+              >
+                {t('header_title_prefix')}{' '}
+                <span className="hero-text-gradient">
+                  {t('header_title_highlight')}
+                </span>
+              </h1>
+              <p
+                className="text-base max-w-lg"
                 style={{
-                  background: 'var(--primary)',
-                  boxShadow: '0 0 6px var(--primary)',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-inter)',
                 }}
-              />
-              <span>{t('header_badge')}</span>
+              >
+                {t('subtitle')}
+              </p>
             </div>
-
-            <h1
-              className="text-5xl md:text-7xl font-black tracking-tighter mb-6"
-              style={{ fontFamily: 'var(--font-manrope)' }}
+            <div
+              className="flex gap-1 p-1 rounded-lg w-fit shrink-0"
+              style={{ background: 'var(--bg-surface)' }}
             >
-              {t('header_title_prefix')}{' '}
-              <span className="hero-text-gradient">
-                {t('header_title_highlight')}
-              </span>
-            </h1>
-            <p
-              className="text-lg max-w-xl mx-auto mb-8"
-              style={{
-                color: 'var(--text-muted)',
-                fontFamily: 'var(--font-inter)',
-              }}
-            >
-              {t('subtitle')}
-            </p>
-          </div>
-        </section>
-
-        {/* ── Tabs ── */}
-        <section className="px-8 max-w-screen-2xl mx-auto w-full">
-          <div
-            className="flex gap-1 p-1 rounded-lg w-fit mx-auto mb-8"
-            style={{ background: 'var(--bg-surface)' }}
-          >
             <button
               onClick={() => setTab('trending')}
               className="px-5 py-2 rounded-md text-sm font-medium transition-all duration-200"
@@ -183,8 +161,11 @@ export default function GalleryPage() {
               </button>
             )}
           </div>
+          </div>
+        </section>
 
-          {/* ── Grid ── */}
+        {/* ── Grid ── */}
+        <section className="px-8 max-w-screen-2xl mx-auto w-full">
           {loading && items.length === 0 ? (
             <div className="flex justify-center py-24">
               <span
@@ -296,6 +277,15 @@ function GalleryCard({
             className="w-full h-full object-cover"
             style={{ background: 'var(--bg-elevated)' }}
             onClick={(e) => e.stopPropagation()}
+          />
+        ) : item.videoUrl ? (
+          <video
+            src={item.videoUrl}
+            muted
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-cover"
+            style={{ background: 'var(--bg-elevated)' }}
           />
         ) : (
           <div
