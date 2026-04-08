@@ -133,3 +133,20 @@ CELERY_RESULT_BACKEND = os.environ.get(
 )
 
 CELERY_TASK_DEFAULT_QUEUE = "gifpt.default"
+
+# Django cache backed by the same Redis instance (required for dead-letter storage)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
+        "KEY_PREFIX": "gifpt",
+    }
+}
+
+# Celery beat: periodic retry of failed callbacks
+CELERY_BEAT_SCHEDULE = {
+    "retry-dead-letter-callbacks": {
+        "task": "studio.retry_dead_letter_callbacks",
+        "schedule": 300.0,  # every 5 minutes
+    },
+}

@@ -2,6 +2,10 @@ name: Deploy to EC2
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Build & Push Docker Images (AMD64)"]
+    types: [completed]
+    branches: [dev]
   push:
     branches: [dev]
     paths:
@@ -19,6 +23,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

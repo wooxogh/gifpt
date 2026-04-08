@@ -61,6 +61,15 @@ def validate_manim_code_basic(code: str):
     return issues
 
 
+class ManimRenderError(Exception):
+    """Raised when Manim rendering fails after all retry attempts."""
+    def __init__(self, error_type: str, stderr_snippet: str, code: str):
+        self.error_type = error_type
+        self.stderr_snippet = stderr_snippet
+        self.code = code
+        super().__init__(f"Manim render failed: {error_type}")
+
+
 def classify_runtime_error(stderr: str):
     if 'NameError' in stderr:
         m = re.search(r"NameError: name '([^']+)' is not defined", stderr)
@@ -76,31 +85,35 @@ def classify_runtime_error(stderr: str):
 
 
 
-_FALLBACK_CODE = (
-    "from manim import *\n\n"
-    "class AlgorithmScene(Scene):\n"
-    "    def construct(self):\n"
-    "        txt = Text('Fallback', font_size=48, color=WHITE)\n"
-    "        self.play(FadeIn(txt))\n"
-    "        self.wait(1)\n"
-    "        self.play(FadeOut(txt))\n"
-    "        self.wait(1)\n"
-)
+def _render_manim_once(code: str, output_dir: Path, output_name: str, timeout: int = 180) -> str | None:
+    """Run manim on *code* and return the video path, or None on failure."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+        tmp.write(code)
+        tmp_path = tmp.name
+
+    try:
+        subprocess.run(
+            ["manim", "-ql", tmp_path, "AlgorithmScene", "--format", "mp4", "-o", output_name],
+            cwd=output_dir, check=True, capture_output=True, text=True, timeout=timeout,
+        )
+
+        tmp_name = Path(tmp_path).stem
+        candidate = output_dir / "media" / "videos" / tmp_name / "480p15" / output_name
+        if candidate.exists():
+            return str(candidate.resolve())
+        matches = list(output_dir.rglob(output_name))
+        if matches:
+            return str(matches[0].resolve())
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
+    return None
 
 
 def run_manim_code(code: str, output_dir: Path, output_name: str | None = None) -> str:
-    """Render Manim code with retry and fallback.
+    """Render Manim code — returns video path on success, raises ManimRenderError on failure.
 
-    Args:
-        code: Complete Manim Python source (must define AlgorithmScene).
-        output_dir: Directory to use as Manim's working directory.
-        output_name: Base filename for the output mp4 (default: auto-generated).
-
-    Returns:
-        Absolute path to the rendered mp4 file.
-
-    Raises:
-        RuntimeError: If both primary render and fallback render fail.
+    Unlike the previous version this does NOT include a fallback scene;
+    the caller is responsible for deciding what to do on failure (e.g. self-heal or fallback).
     """
     import time as _time
 
@@ -110,86 +123,65 @@ def run_manim_code(code: str, output_dir: Path, output_name: str | None = None) 
     if output_name is None:
         output_name = f"video_{int(_time.time())}.mp4"
 
-    video_path = None
-    max_render_attempts = 3
+    last_stderr = ""
 
-    for attempt in range(1, max_render_attempts + 1):
+    for attempt in range(1, 4):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
             tmp.write(code)
             tmp_path = tmp.name
 
         try:
             subprocess.run(
-                [
-                    "manim", "-ql",
-                    tmp_path,
-                    "AlgorithmScene",
-                    "--format", "mp4",
-                    "-o", output_name,
-                ],
-                cwd=output_dir,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=180,
+                ["manim", "-ql", tmp_path, "AlgorithmScene", "--format", "mp4", "-o", output_name],
+                cwd=output_dir, check=True, capture_output=True, text=True, timeout=180,
             )
 
             tmp_name = Path(tmp_path).stem
             candidate = output_dir / "media" / "videos" / tmp_name / "480p15" / output_name
             if candidate.exists():
-                video_path = str(candidate.resolve())
-                break
-
+                return str(candidate.resolve())
             matches = list(output_dir.rglob(output_name))
             if matches:
-                video_path = str(matches[0].resolve())
-                break
+                return str(matches[0].resolve())
 
         except subprocess.CalledProcessError as e:
-            err = classify_runtime_error(e.stderr or "")
-            logger.warning("run_manim_code attempt %d/%d failed: %s", attempt, max_render_attempts, err)
-            if attempt == max_render_attempts:
-                break
+            last_stderr = e.stderr or ""
+            err = classify_runtime_error(last_stderr)
+            logger.warning("run_manim_code attempt %d/3 failed: %s", attempt, err)
 
         except subprocess.TimeoutExpired:
-            logger.warning("run_manim_code attempt %d/%d timed out", attempt, max_render_attempts)
-            if attempt == max_render_attempts:
-                break
+            last_stderr = "render timed out after 180s"
+            logger.warning("run_manim_code attempt %d/3 timed out", attempt)
 
-    if video_path:
-        return video_path
+    # All attempts exhausted — raise with error details for self-healing
+    err = classify_runtime_error(last_stderr)
+    raise ManimRenderError(err["error_type"], last_stderr[-2000:], code)
 
-    # Fallback: render a minimal placeholder scene
-    logger.warning("run_manim_code: all attempts failed, rendering fallback")
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_fb:
-        tmp_fb.write(_FALLBACK_CODE)
-        fb_path = tmp_fb.name
-    try:
-        subprocess.run(
-            [
-                "manim", "-ql",
-                fb_path,
-                "AlgorithmScene",
-                "--format", "mp4",
-                "-o", output_name,
-            ],
-            cwd=output_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        fb_name = Path(fb_path).stem
-        fb_candidate = output_dir / "media" / "videos" / fb_name / "480p15" / output_name
-        if fb_candidate.exists():
-            return str(fb_candidate.resolve())
-        matches = list(output_dir.rglob(output_name))
-        if matches:
-            return str(matches[0].resolve())
-    except Exception as ee:
-        raise RuntimeError(f"run_manim_code fallback failed: {ee}") from ee
 
-    raise RuntimeError("run_manim_code: video file not found after fallback render")
+def render_fallback(output_dir: Path, output_name: str, algorithm_name: str = "Algorithm") -> str:
+    """Render a minimal placeholder scene showing the algorithm name.
+
+    Returns the video path, or raises RuntimeError if even this fails.
+    """
+    safe_name = algorithm_name.replace("'", "\\'").replace('"', '\\"')[:60]
+    fallback_code = (
+        "from manim import *\n\n"
+        "class AlgorithmScene(Scene):\n"
+        "    def construct(self):\n"
+        f"        title = Text('{safe_name}', font_size=36, color=WHITE)\n"
+        "        msg = Text('Video generation failed — please retry', font_size=20, color=GRAY)\n"
+        "        grp = VGroup(title, msg).arrange(DOWN, buff=0.5)\n"
+        "        self.play(FadeIn(grp))\n"
+        "        self.wait(2)\n"
+        "        self.play(FadeOut(grp))\n"
+    )
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = _render_manim_once(fallback_code, output_dir, output_name, timeout=60)
+    if path:
+        return path
+    raise RuntimeError("render_fallback: fallback scene also failed to render")
 
 
 def render_video_from_instructions(instructions: str) -> str:
@@ -204,8 +196,8 @@ def render_video_from_instructions(instructions: str) -> str:
     user_text = _sanitize_text(instructions)
 
     # 1) 도메인 결정
-    domain = call_llm_detect_domain(user_text)
-    logger.info("🎯 detected domain for video_render: %s", domain)
+    domain, is_3d = call_llm_detect_domain(user_text)
+    logger.info("🎯 detected domain for video_render: %s (is_3d=%s)", domain, is_3d)
 
     # 2) 도메인별 처리 -----------------------------
 
@@ -272,44 +264,67 @@ def render_video_from_instructions(instructions: str) -> str:
             if ir_try == MAX_IR_RETRIES:
                 logger.warning("[Anim IR] proceeding with last attempt despite issues")
 
-        # ── Step 3: Codegen (with existing retry + post-check) ──
+        # ── Step 3: Codegen + Render with self-healing ──
+        from studio.ai.llm_codegen import call_llm_codegen_fix
+
         manim_code = None
+        video_path = None
         max_codegen_attempts = 3
+        output_dir = RESULT_DIR / "videos"
+        output_name = f"video_{int(time.time())}.mp4"
 
         for attempt in range(1, max_codegen_attempts + 1):
             start = time.perf_counter()
-            code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
+
+            if attempt == 1:
+                code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
+            else:
+                # Self-heal: feed the render error back to LLM for correction
+                code_try = call_llm_codegen_fix(manim_code, last_error_type, last_stderr)
+
             issues = validate_manim_code_basic(code_try)
             dur = time.perf_counter() - start
 
             if issues:
-                logger.warning("[CodeGen] attempt %d/%d failed (%d issues) %.2fs",
+                logger.warning("[CodeGen] attempt %d/%d static issues (%d) %.2fs",
                                attempt, max_codegen_attempts, len(issues), dur)
-                if attempt == max_codegen_attempts:
-                    manim_code = code_try
-                continue
+                manim_code = code_try
+                if attempt < max_codegen_attempts:
+                    continue  # retry codegen without rendering
             else:
                 manim_code = code_try
                 logger.info("[CodeGen] attempt %d passed %.2fs", attempt, dur)
+
+            # Debug: save generated code
+            debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
+            debug_path = debug_dir / f"debug_generated_code_{domain}.py"
+            try:
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                debug_path.write_text(manim_code or "", encoding="utf-8")
+            except Exception:
+                pass
+
+            # Try rendering
+            try:
+                video_path = run_manim_code(manim_code, output_dir, output_name)
+                logger.info("[Render] success on attempt %d — %s", attempt, video_path)
                 break
+            except ManimRenderError as e:
+                last_error_type = e.error_type
+                last_stderr = e.stderr_snippet
+                logger.warning("[Render] attempt %d/%d failed: %s — feeding error back to LLM",
+                               attempt, e.error_type, max_codegen_attempts)
+                if attempt == max_codegen_attempts:
+                    logger.warning("[Render] all attempts exhausted — rendering fallback")
+                    video_path = render_fallback(output_dir, output_name, algorithm_name=domain)
 
-        # Debug: save generated code
-        debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
-        debug_path = debug_dir / f"debug_generated_code_{domain}.py"
-        try:
-            debug_dir.mkdir(parents=True, exist_ok=True)
-            debug_path.write_text(manim_code or "", encoding="utf-8")
-        except Exception:
-            pass
+        if video_path is None:
+            video_path = render_fallback(output_dir, output_name, algorithm_name=domain)
 
-        # ── Step 4: Render ──
-        output_dir = RESULT_DIR / "videos"
-        output_name = f"video_{int(time.time())}.mp4"
-        video_path = run_manim_code(manim_code, output_dir, output_name)
         logger.info("[Render] video at %s", video_path)
 
         # ── Step 5: Vision QA ──
-        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0)
+        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0, domain=domain)
         logger.info("[Vision QA] score=%.1f passed=%s summary=%s",
                     qa_result["score"], qa_result["passed"], qa_result["summary"])
 

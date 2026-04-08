@@ -1,7 +1,6 @@
 {
   "nav": {
     "gallery": "Gallery",
-    "workspaces": "My Workspaces",
     "login": "Log in",
     "signup": "Sign up",
     "logout": "Log out"
@@ -60,7 +59,11 @@
     "filter_graph": "Graph",
     "filter_dp": "Dynamic Programming",
     "filter_tree": "Tree",
-    "filter_search": "Search"
+    "filter_search": "Search",
+    "tab_trending": "Trending",
+    "tab_my_gallery": "My Gallery",
+    "my_empty": "You haven't generated any animations yet. Try creating one from the home page!",
+    "login_to_view_mine": "Log in to see your animations"
   },
   "auth": {
     "login_title": "Log in",
@@ -100,46 +103,5 @@
   "meta": {
     "title": "GIFPT — Algorithm Animation",
     "description": "Animate any algorithm in under 60 seconds. Powered by Manim."
-  },
-  "workspaces": {
-    "nav_link": "My Workspaces",
-    "page_title": "My Workspaces",
-    "page_subtitle": "Manage your PDF-based algorithm analysis workspaces.",
-    "new_button": "New Workspace",
-    "empty_title": "No workspaces yet",
-    "empty_subtitle": "Upload a PDF to create your first workspace.",
-    "empty_cta": "Create Workspace",
-    "status_pending": "Pending",
-    "status_running": "Analyzing...",
-    "status_success": "Ready",
-    "status_failed": "Failed",
-    "delete_button": "Delete",
-    "delete_confirm": "Delete this workspace?",
-    "view_button": "View",
-    "created_at": "Created",
-    "new_title": "New Workspace",
-    "new_subtitle": "Upload a PDF and describe what you want to analyze.",
-    "form_title_label": "Title",
-    "form_title_placeholder": "e.g. Sorting Algorithms Overview",
-    "form_prompt_label": "Prompt",
-    "form_prompt_placeholder": "Describe what you want to visualize or learn...",
-    "form_pdf_label": "PDF File",
-    "form_pdf_hint": "Upload a PDF containing algorithm descriptions or code",
-    "form_submit": "Create Workspace",
-    "form_submitting": "Creating...",
-    "back_to_list": "My Workspaces",
-    "detail_summary_title": "Summary",
-    "detail_summary_empty": "Analysis in progress...",
-    "detail_chat_title": "Ask about this document",
-    "detail_chat_placeholder": "Ask a question about this algorithm...",
-    "detail_chat_send": "Send",
-    "detail_chat_sending": "Sending...",
-    "detail_processing": "Analyzing your PDF...",
-    "detail_failed": "Analysis failed. Please try again.",
-    "login_required": "Please log in to view workspaces.",
-    "error_load": "Failed to load workspaces.",
-    "error_create": "Failed to create workspace.",
-    "error_delete": "Failed to delete workspace.",
-    "error_chat": "Failed to send message."
   }
 }

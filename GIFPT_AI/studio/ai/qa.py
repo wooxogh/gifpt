@@ -119,6 +119,49 @@ def validate_anim_ir(ir: dict) -> list[str]:
 
 # ── 2. Vision QA ──────────────────────────────────────────────────────────────
 
+DOMAIN_QA_CRITERIA = {
+    "sorting": (
+        "\nDOMAIN-SPECIFIC CHECKS for SORTING visualization:\n"
+        "- Are array elements clearly visible as distinct cells with values?\n"
+        "- Can you see comparison/swap operations being performed step by step?\n"
+        "- Is the progression from unsorted to sorted state visible?\n"
+        "- Are compared/swapped elements highlighted or color-coded?\n"
+    ),
+    "graph_traversal": (
+        "\nDOMAIN-SPECIFIC CHECKS for GRAPH visualization:\n"
+        "- Are nodes clearly visible as circles/shapes with labels?\n"
+        "- Are edges/connections between nodes drawn correctly?\n"
+        "- Is the traversal order visible (e.g., visited nodes change color)?\n"
+        "- Are queue/stack states shown if applicable?\n"
+    ),
+    "cnn_param": (
+        "\nDOMAIN-SPECIFIC CHECKS for CNN visualization:\n"
+        "- Are layers (input, convolution, pooling, output) distinguishable?\n"
+        "- Are kernel/filter operations animated (sliding window)?\n"
+        "- Are dimensions/shapes annotated on each layer?\n"
+        "- Is the data flow direction clear (left to right or similar)?\n"
+    ),
+    "dynamic_programming": (
+        "\nDOMAIN-SPECIFIC CHECKS for DP visualization:\n"
+        "- Is a table/grid structure visible showing subproblem results?\n"
+        "- Are cell fill-ins animated in the correct order?\n"
+        "- Are dependencies between cells shown (arrows or highlights)?\n"
+    ),
+    "cache": (
+        "\nDOMAIN-SPECIFIC CHECKS for CACHE visualization:\n"
+        "- Are cache slots/queue structures visible?\n"
+        "- Are hit/miss events clearly indicated?\n"
+        "- Is the eviction process animated?\n"
+    ),
+    "transformer": (
+        "\nDOMAIN-SPECIFIC CHECKS for TRANSFORMER visualization:\n"
+        "- Are encoder/decoder blocks distinguishable?\n"
+        "- Is the attention mechanism visually represented (weights, arrows)?\n"
+        "- Is the data flow through layers shown sequentially?\n"
+    ),
+}
+
+
 def extract_frames(video_path: str, num_frames: int = 4) -> list[str]:
     """Extract evenly-spaced frames from video as base64 PNG strings."""
     video_path = Path(video_path)
@@ -168,6 +211,7 @@ def vision_qa(
     algorithm_description: str,
     num_frames: int = 4,
     threshold: float = 5.0,
+    domain: str | None = None,
 ) -> dict:
     """Run vision QA on rendered video.
 
@@ -198,6 +242,7 @@ def vision_qa(
         }
 
     # Build GPT-4o message with frames
+    domain_criteria = DOMAIN_QA_CRITERIA.get(domain, "") if domain else ""
     content: list[dict] = [
         {
             "type": "text",
@@ -209,7 +254,8 @@ def vision_qa(
                 f"1. CORRECTNESS: Does it accurately represent the described algorithm/logic?\n"
                 f"2. VISUAL CLARITY: Are elements visible, not overlapping, properly labeled?\n"
                 f"3. COMPLETENESS: Does it show the key steps, not just a static image?\n"
-                f"4. READABILITY: Is text readable? Are colors distinguishable?\n\n"
+                f"4. READABILITY: Is text readable? Are colors distinguishable?\n"
+                f"{domain_criteria}\n"
                 f"Respond with ONLY JSON:\n"
                 f'{{"score": <1-10>, "issues": [<string list of problems found>], '
                 f'"summary": "<1 sentence overall assessment>"}}'

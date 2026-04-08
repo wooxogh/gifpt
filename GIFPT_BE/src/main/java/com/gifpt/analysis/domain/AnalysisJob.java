@@ -22,6 +22,9 @@ public class AnalysisJob {
   @Enumerated(EnumType.STRING)
   private AnalysisStatus status;
 
+  @Column(length = 128)
+  private String algorithmSlug;  // normalized algorithm name for dedup (null for custom prompts)
+
   @Column(length = 4000)
   private String prompt;      // 사용자가 입력한 프롬프트
 
