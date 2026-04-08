@@ -283,7 +283,7 @@ function GalleryCard({
             src={item.videoUrl}
             muted
             playsInline
-            preload="metadata"
+            preload="none"
             className="w-full h-full object-cover"
             style={{ background: 'var(--bg-elevated)' }}
           />
