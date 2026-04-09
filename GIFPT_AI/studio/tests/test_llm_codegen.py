@@ -1,10 +1,12 @@
 """Tests for llm_codegen utility functions and input normalization.
 
-Run from GIFPT_AI/: python3 -m pytest studio/tests/test_llm_codegen.py -v
+Mocks openai and dotenv so no env vars or packages needed.
+Run from GIFPT_AI/: python3 -m unittest studio.tests.test_llm_codegen
 """
 import sys
+import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Project root on path
 _ROOT = Path(__file__).resolve().parents[2]
@@ -42,7 +44,7 @@ def _setup_mock_response():
     return _mock_client
 
 
-class TestQAFeedbackNormalization:
+class TestQAFeedbackNormalization(unittest.TestCase):
     """call_llm_codegen_with_qa_feedback input normalization."""
 
     def _call(self, qa_issues):
@@ -53,11 +55,11 @@ class TestQAFeedbackNormalization:
 
     def test_none_issues(self):
         result = self._call(None)
-        assert "AlgorithmScene" in result
+        self.assertIn("AlgorithmScene", result)
 
     def test_empty_string(self):
         result = self._call("")
-        assert "AlgorithmScene" in result
+        self.assertIn("AlgorithmScene", result)
 
     def test_single_string(self):
         mock = _setup_mock_response()
@@ -66,7 +68,7 @@ class TestQAFeedbackNormalization:
         )
         call_args = mock.chat.completions.create.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
-        assert "overlapping elements" in user_msg
+        self.assertIn("overlapping elements", user_msg)
 
     def test_list_of_strings(self):
         mock = _setup_mock_response()
@@ -75,8 +77,8 @@ class TestQAFeedbackNormalization:
         )
         call_args = mock.chat.completions.create.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
-        assert "- overlap" in user_msg
-        assert "- unreadable text" in user_msg
+        self.assertIn("- overlap", user_msg)
+        self.assertIn("- unreadable text", user_msg)
 
     def test_whitespace_only_filtered(self):
         mock = _setup_mock_response()
@@ -85,7 +87,7 @@ class TestQAFeedbackNormalization:
         )
         call_args = mock.chat.completions.create.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
-        assert "- real issue" in user_msg
+        self.assertIn("- real issue", user_msg)
 
     def test_truncation_at_max(self):
         mock = _setup_mock_response()
@@ -95,12 +97,12 @@ class TestQAFeedbackNormalization:
         )
         call_args = mock.chat.completions.create.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
-        assert f"issue {MAX_QA_ISSUES - 1}" in user_msg
-        assert f"issue {MAX_QA_ISSUES + 5}" not in user_msg
+        self.assertIn(f"issue {MAX_QA_ISSUES - 1}", user_msg)
+        self.assertNotIn(f"issue {MAX_QA_ISSUES + 5}", user_msg)
 
     def test_non_iterable_fallback(self):
         result = self._call(42)
-        assert "AlgorithmScene" in result
+        self.assertIn("AlgorithmScene", result)
 
     def test_empty_list_falls_back_to_standard(self):
         mock = _setup_mock_response()
@@ -110,44 +112,48 @@ class TestQAFeedbackNormalization:
         call_args = mock.chat.completions.create.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
         # Empty list should not include QA feedback section
-        assert "quality issues detected by Vision QA" not in user_msg
+        self.assertNotIn("quality issues detected by Vision QA", user_msg)
 
 
-class TestBuildFewShotSystemPrompt:
+class TestBuildFewShotSystemPrompt(unittest.TestCase):
     """_build_few_shot_system_prompt edge cases."""
 
     def test_empty_examples(self):
         result = _build_few_shot_system_prompt([])
-        assert "PEDAGOGICAL RULES" in result
-        assert "AlgorithmScene" in result
+        self.assertIn("PEDAGOGICAL RULES", result)
+        self.assertIn("AlgorithmScene", result)
 
     def test_example_with_none_code(self):
         # code=None should not crash
         result = _build_few_shot_system_prompt([
             {"tag": "test", "pattern_type": "SEQ", "quality_score": 5, "code": None}
         ])
-        assert "example_1" in result
+        self.assertIn("example_1", result)
 
     def test_example_with_missing_keys(self):
         result = _build_few_shot_system_prompt([{}])
-        assert "example_1" in result
+        self.assertIn("example_1", result)
 
 
-class TestSharedConstants:
+class TestSharedConstants(unittest.TestCase):
     """Verify shared constants are used in prompts."""
 
     def test_system_prompt_contains_pedagogical_rules(self):
-        assert "CAUSE BEFORE EFFECT" in SYSTEM_PROMPT
+        self.assertIn("CAUSE BEFORE EFFECT", SYSTEM_PROMPT)
 
     def test_few_shot_prompt_contains_pedagogical_rules(self):
         prompt = _build_few_shot_system_prompt([])
-        assert "CAUSE BEFORE EFFECT" in prompt
+        self.assertIn("CAUSE BEFORE EFFECT", prompt)
 
     def test_pedagogical_constants_not_empty(self):
-        assert len(PEDAGOGICAL_RULES_FULL) > 100
-        assert len(PEDAGOGICAL_RULES_CONDENSED) > 100
+        self.assertGreater(len(PEDAGOGICAL_RULES_FULL), 100)
+        self.assertGreater(len(PEDAGOGICAL_RULES_CONDENSED), 100)
 
     def test_model_constants(self):
-        assert MODEL_PRIMARY
-        assert MODEL_FAST
-        assert MODEL_PRIMARY != MODEL_FAST
+        self.assertTrue(MODEL_PRIMARY)
+        self.assertTrue(MODEL_FAST)
+        self.assertNotEqual(MODEL_PRIMARY, MODEL_FAST)
+
+
+if __name__ == "__main__":
+    unittest.main()
