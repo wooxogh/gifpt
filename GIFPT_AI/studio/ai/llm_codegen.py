@@ -448,10 +448,10 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
 
     normalized_issues = normalized_issues[:max_qa_issues]
     issues_text = "\n".join(f"- {issue}" for issue in normalized_issues)
-    prompt = build_prompt_codegen(anim_ir)
     if not normalized_issues:
         # No actual issues — fall back to standard codegen
         return call_llm_codegen(anim_ir)
+    prompt = build_prompt_codegen(anim_ir)
     prompt += (
         f"\n\nIMPORTANT — The previous rendering had these quality issues detected by Vision QA:\n"
         f"{issues_text}\n\n"
