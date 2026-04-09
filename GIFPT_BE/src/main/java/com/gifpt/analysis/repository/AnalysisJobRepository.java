@@ -14,9 +14,9 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> 
 
     Optional<AnalysisJob> findFirstByAlgorithmSlugAndStatusInOrderByIdDesc(String algorithmSlug, Collection<AnalysisStatus> statuses);
 
-    // Gallery: all successful algorithm animations (trending)
-    Page<AnalysisJob> findByStatusAndAlgorithmSlugIsNotNull(AnalysisStatus status, Pageable pageable);
+    // Gallery: all successful animations (trending) — includes both name and describe modes
+    Page<AnalysisJob> findByStatus(AnalysisStatus status, Pageable pageable);
 
-    // Gallery: current user's successful animations (my gallery)
-    Page<AnalysisJob> findByUserIdAndStatusAndAlgorithmSlugIsNotNull(Long userId, AnalysisStatus status, Pageable pageable);
+    // Gallery: current user's successful animations (my gallery) — includes both name and describe modes
+    Page<AnalysisJob> findByUserIdAndStatus(Long userId, AnalysisStatus status, Pageable pageable);
 }

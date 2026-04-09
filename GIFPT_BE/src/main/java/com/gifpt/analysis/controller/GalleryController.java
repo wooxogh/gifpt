@@ -31,7 +31,7 @@ public class GalleryController {
     ) {
         var pageable = PageRequest.of(page, Math.min(size, 48), Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<GalleryItemResponse> result = analysisJobRepository
-                .findByStatusAndAlgorithmSlugIsNotNull(AnalysisStatus.SUCCESS, pageable)
+                .findByStatus(AnalysisStatus.SUCCESS, pageable)
                 .map(GalleryController::toResponse);
         return ResponseEntity.ok(result);
     }
@@ -51,7 +51,7 @@ public class GalleryController {
         }
         var pageable = PageRequest.of(page, Math.min(size, 48), Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<GalleryItemResponse> result = analysisJobRepository
-                .findByUserIdAndStatusAndAlgorithmSlugIsNotNull(user.getId(), AnalysisStatus.SUCCESS, pageable)
+                .findByUserIdAndStatus(user.getId(), AnalysisStatus.SUCCESS, pageable)
                 .map(GalleryController::toResponse);
         return ResponseEntity.ok(result);
     }
