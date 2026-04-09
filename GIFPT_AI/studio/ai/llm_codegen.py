@@ -25,6 +25,100 @@ VALID_MANIM_COLORS = [
 
 BASE_DIR = Path(__file__).resolve().parent
 
+# Model constants — change here to upgrade across all codegen calls
+MODEL_PRIMARY = "gpt-4o"         # Used for main codegen + QA feedback
+MODEL_FAST = "gpt-4.1-mini"     # Used for fixes + few-shot algorithm codegen
+MAX_QA_ISSUES = 20               # Cap QA issues injected into retry prompt
+
+# Shared pedagogical rules — single source of truth for all prompts
+PEDAGOGICAL_RULES_FULL = """
+PEDAGOGICAL ANIMATION RULES (MOST IMPORTANT — these determine whether the video
+actually explains the concept or just looks like random motion):
+
+1. CAUSE BEFORE EFFECT: Always highlight/indicate the elements being compared or
+   examined BEFORE animating the resulting action (swap, insert, remove).
+   Pattern: Indicate(element) → annotation Text → transform animation → self.wait(0.5)
+   The viewer must see WHY something happens before seeing it happen.
+
+2. ONE OPERATION PER BEAT: Each self.play() call should animate exactly one logical
+   operation. NEVER combine a comparison highlight and a swap in the same self.play().
+   Bad:  self.play(Indicate(a), a.animate.move_to(b_pos))
+   Good: self.play(Indicate(a), Indicate(b))  # compare
+         self.play(a.animate.move_to(b_pos), b.animate.move_to(a_pos))  # swap
+
+3. VISUAL STATE ENCODING: Maintain a consistent color scheme that encodes algorithm
+   state throughout the entire animation. Elements change color to reflect state:
+   - GRAY or WHITE (default): unprocessed / waiting
+   - YELLOW_B: currently being examined / active
+   - RED_B: being swapped / modified / rejected
+   - GREEN_B: finalized / in correct position / accepted
+   Once an element is marked GREEN (finalized), it should STAY green unless the
+   algorithm logically revisits it. State colors are permanent markers, not decoration.
+
+4. INVARIANT MARKERS: Visually show the algorithm's invariant or progress. Examples:
+   - Sorting: a translucent bracket or background behind the sorted portion that grows
+   - Graph: visited nodes stay highlighted, frontier is distinct from unvisited
+   - DP: filled cells stay colored, empty cells remain gray
+   - Cache: occupied slots vs empty slots clearly distinguishable
+   Use a persistent visual element (SurroundingRectangle, Brace, or background color)
+   that grows/moves as the algorithm progresses.
+
+5. PROGRESSIVE PACING: First iteration of any loop should be slow with full annotations.
+   Subsequent iterations accelerate with fewer annotations:
+   - First pass: run_time=1.0-1.5, show comparison text, explain the decision
+   - Middle passes: run_time=0.5-0.8, highlight only, skip redundant text
+   - Final passes: run_time=0.3-0.5, fast to show the algorithm "clicking into place"
+
+6. STEP LABEL: Maintain a persistent label in the top-left corner showing the current
+   phase or iteration (e.g., "Pass 3 of 5", "Inserting key=7", "BFS: depth 2").
+   Update this label at each major step. This anchors the viewer in the algorithm's flow.
+   step_label = Text("Pass 1", font_size=20, color=GRAY).to_corner(UL)
+
+7. PAUSE AFTER STATE CHANGES: Insert self.wait(0.5-1.0) after every significant state
+   transition (swap, insertion, deletion, node visit). The viewer needs processing time.
+
+8. CONCRETE DATA: Use specific small numbers (5-8 elements). Choose values that trigger
+   interesting algorithm behavior:
+   - Sorting: include duplicates, nearly-sorted subsequences — e.g., [38, 27, 43, 3, 9, 82, 10]
+   - Graph: include cycles, varying degree — not just a simple chain
+   - DP: values that show overlapping subproblems clearly
+
+9. DIM THE IRRELEVANT: When the algorithm focuses on a sub-problem (partition in
+   quicksort, subtree in DFS, window in sliding window):
+   - Reduce opacity of elements outside the active range to 0.3
+   - Restore full opacity when scope expands back
+   element.animate.set_opacity(0.3)  # dim
+   element.animate.set_opacity(1.0)  # restore
+
+10. SHOW DATA STRUCTURE FIRST: Always create and display the full data structure
+    (array, graph, tree, table) BEFORE starting the algorithm. The viewer needs spatial
+    context before temporal action. Pattern:
+    - FadeIn the structure with labels
+    - self.wait(1) to let viewer absorb
+    - Then begin algorithm steps
+""".strip()
+
+# Condensed version for few-shot and user prompts (same rules, less detail)
+PEDAGOGICAL_RULES_CONDENSED = """
+PEDAGOGICAL RULES (the animation must EXPLAIN the algorithm, not just show motion):
+1. CAUSE BEFORE EFFECT: Highlight elements being compared BEFORE animating the
+   resulting action. Pattern: Indicate → annotate → transform → pause.
+2. ONE OPERATION PER BEAT: Each self.play() = one logical operation. Never combine
+   a comparison and a swap in one call.
+3. VISUAL STATE ENCODING: Color = algorithm state, not decoration.
+   GRAY=unprocessed, YELLOW_B=examining, RED_B=swapping, GREEN_B=finalized.
+   Finalized elements STAY their color.
+4. INVARIANT MARKERS: Show algorithm progress visually (sorted portion grows,
+   visited set expands, DP table fills). Use persistent visual elements.
+5. PROGRESSIVE PACING: First loop pass slow (run_time=1.0-1.5) with annotations.
+   Later passes faster (0.3-0.5) with less annotation.
+6. STEP LABEL: Persistent label top-left showing current phase/iteration.
+7. PAUSE AFTER STATE CHANGES: self.wait(0.5-1.0) after swaps, insertions, visits.
+8. SHOW STRUCTURE FIRST: FadeIn the full data structure, wait(1), then begin.
+9. DIM THE IRRELEVANT: set_opacity(0.3) on elements outside the active range.
+10. CONCRETE DATA: 5-8 specific elements that trigger interesting behavior.
+""".strip()
+
 # 같은 폴더에 있는 render_cnn_matrix.py 를 참조
 REFERENCE_PATH = BASE_DIR / "render_cnn_matrix.py"
 
@@ -104,70 +198,7 @@ Semantic color assignments (use consistently throughout):
 - Secondary: PURPLE_B or TEAL_B
 - Neutral/borders: GRAY or WHITE
 
-PEDAGOGICAL ANIMATION RULES (MOST IMPORTANT — these determine whether the video
-actually explains the concept or just looks like random motion):
-
-1. CAUSE BEFORE EFFECT: Always highlight/indicate the elements being compared or
-   examined BEFORE animating the resulting action (swap, insert, remove).
-   Pattern: Indicate(element) → annotation Text → transform animation → self.wait(0.5)
-   The viewer must see WHY something happens before seeing it happen.
-
-2. ONE OPERATION PER BEAT: Each self.play() call should animate exactly one logical
-   operation. NEVER combine a comparison highlight and a swap in the same self.play().
-   Bad:  self.play(Indicate(a), a.animate.move_to(b_pos))
-   Good: self.play(Indicate(a), Indicate(b))  # compare
-         self.play(a.animate.move_to(b_pos), b.animate.move_to(a_pos))  # swap
-
-3. VISUAL STATE ENCODING: Maintain a consistent color scheme that encodes algorithm
-   state throughout the entire animation. Elements change color to reflect state:
-   - GRAY or WHITE (default): unprocessed / waiting
-   - YELLOW_B: currently being examined / active
-   - RED_B: being swapped / modified / rejected
-   - GREEN_B: finalized / in correct position / accepted
-   Once an element is marked GREEN (finalized), it should STAY green unless the
-   algorithm logically revisits it. State colors are permanent markers, not decoration.
-
-4. INVARIANT MARKERS: Visually show the algorithm's invariant or progress. Examples:
-   - Sorting: a translucent bracket or background behind the sorted portion that grows
-   - Graph: visited nodes stay highlighted, frontier is distinct from unvisited
-   - DP: filled cells stay colored, empty cells remain gray
-   - Cache: occupied slots vs empty slots clearly distinguishable
-   Use a persistent visual element (SurroundingRectangle, Brace, or background color)
-   that grows/moves as the algorithm progresses.
-
-5. PROGRESSIVE PACING: First iteration of any loop should be slow with full annotations.
-   Subsequent iterations accelerate with fewer annotations:
-   - First pass: run_time=1.0-1.5, show comparison text, explain the decision
-   - Middle passes: run_time=0.5-0.8, highlight only, skip redundant text
-   - Final passes: run_time=0.3-0.5, fast to show the algorithm "clicking into place"
-
-6. STEP LABEL: Maintain a persistent label in the top-left corner showing the current
-   phase or iteration (e.g., "Pass 3 of 5", "Inserting key=7", "BFS: depth 2").
-   Update this label at each major step. This anchors the viewer in the algorithm's flow.
-   step_label = Text("Pass 1", font_size=20, color=GRAY).to_corner(UL)
-
-7. PAUSE AFTER STATE CHANGES: Insert self.wait(0.5-1.0) after every significant state
-   transition (swap, insertion, deletion, node visit). The viewer needs processing time.
-
-8. CONCRETE DATA: Use specific small numbers (5-8 elements). Choose values that trigger
-   interesting algorithm behavior:
-   - Sorting: include duplicates, nearly-sorted subsequences — e.g., [38, 27, 43, 3, 9, 82, 10]
-   - Graph: include cycles, varying degree — not just a simple chain
-   - DP: values that show overlapping subproblems clearly
-
-9. DIM THE IRRELEVANT: When the algorithm focuses on a sub-problem (partition in
-   quicksort, subtree in DFS, window in sliding window):
-   - Reduce opacity of elements outside the active range to 0.3
-   - Restore full opacity when scope expands back
-   element.animate.set_opacity(0.3)  # dim
-   element.animate.set_opacity(1.0)  # restore
-
-10. SHOW DATA STRUCTURE FIRST: Always create and display the full data structure
-    (array, graph, tree, table) BEFORE starting the algorithm. The viewer needs spatial
-    context before temporal action. Pattern:
-    - FadeIn the structure with labels
-    - self.wait(1) to let viewer absorb
-    - Then begin algorithm steps
+{PEDAGOGICAL_RULES_FULL}
 
 ANIMATION PACING:
 - Use LaggedStart with lag_ratio=0.15-0.3 for staggered reveals (looks professional)
@@ -337,7 +368,7 @@ def _build_few_shot_system_prompt(examples: list[dict]) -> str:
             f"\n<example_{i} tag=\"{ex.get('tag', '')}\" "
             f"pattern=\"{ex.get('pattern_type', '')}\" "
             f"quality=\"{ex.get('quality_score', '')}\">\n"
-            f"{ex.get('code', '').strip()}\n"
+            f"{(ex.get('code') or '').strip()}\n"
             f"</example_{i}>\n"
         )
 
@@ -374,22 +405,7 @@ Allowed: WHITE, BLACK, GRAY/GREY, BLUE(_A-E), RED(_A-E), GREEN(_A-E), YELLOW(_A-
 PURPLE(_A-E), ORANGE, PINK, TEAL(_A-E), GOLD(_A-E), MAROON, LIGHT_GRAY, DARK_GRAY
 FORBIDDEN: LIGHT_BLUE, DARK_BLUE, CYAN, MAGENTA, VIOLET, INDIGO, BROWN
 
-PEDAGOGICAL RULES (the animation must EXPLAIN the algorithm, not just show motion):
-1. CAUSE BEFORE EFFECT: Highlight elements being compared BEFORE animating the
-   resulting action. Pattern: Indicate → annotate → transform → pause.
-2. ONE OPERATION PER BEAT: Each self.play() = one logical operation. Never combine
-   a comparison and a swap in one call.
-3. VISUAL STATE ENCODING: Color = algorithm state, not decoration.
-   GRAY=unprocessed, YELLOW_B=examining, RED_B=swapping, GREEN_B=finalized.
-   Finalized elements STAY their color.
-4. INVARIANT MARKERS: Show algorithm progress visually (sorted portion grows,
-   visited set expands, DP table fills). Use persistent visual elements.
-5. PROGRESSIVE PACING: First loop pass slow (run_time=1.0-1.5) with annotations.
-   Later passes faster (0.3-0.5) with less annotation.
-6. STEP LABEL: Persistent label top-left showing current phase/iteration.
-7. SHOW STRUCTURE FIRST: FadeIn the full data structure, wait(1), then begin.
-8. DIM THE IRRELEVANT: set_opacity(0.3) on elements outside the active range.
-9. CONCRETE DATA: 5-8 specific elements that trigger interesting behavior.
+{PEDAGOGICAL_RULES_CONDENSED}
 
 ANIMATION PACING:
 - Use LaggedStart(lag_ratio=0.15-0.3) for staggered reveals
@@ -413,7 +429,7 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
     (overlapping elements, unreadable text, missing steps, etc.) into the prompt
     so the LLM can address them directly.
     """
-    max_qa_issues = 20
+    max_qa_issues = MAX_QA_ISSUES
     if qa_issues is None:
         normalized_issues = []
     elif isinstance(qa_issues, str):
@@ -433,6 +449,9 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
     normalized_issues = normalized_issues[:max_qa_issues]
     issues_text = "\n".join(f"- {issue}" for issue in normalized_issues)
     prompt = build_prompt_codegen(anim_ir)
+    if not normalized_issues:
+        # No actual issues — fall back to standard codegen
+        return call_llm_codegen(anim_ir)
     prompt += (
         f"\n\nIMPORTANT — The previous rendering had these quality issues detected by Vision QA:\n"
         f"{issues_text}\n\n"
@@ -458,7 +477,7 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
         f"Output ONLY the corrected Python code."
     )
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL_PRIMARY,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -483,7 +502,7 @@ def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: st
         f"Keep the same visual intent. Output ONLY the corrected Python code, no markdown."
     )
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=MODEL_FAST,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": fix_prompt},
@@ -507,7 +526,7 @@ def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
         f"2. Add a step_label in the top-left corner that updates each phase.\n"
         f"3. For each operation: HIGHLIGHT the elements being examined first (cause),\n"
         f"   THEN animate the action (effect), THEN pause briefly.\n"
-        f"4. Use color to encode state: YELLOW=examining, RED=swapping, GREEN=finalized.\n"
+        f"4. Use color to encode state: YELLOW_B=examining, RED_B=swapping, GREEN_B=finalized.\n"
         f"5. Show the algorithm's invariant growing (sorted region, visited set, etc.).\n"
         f"6. First loop iteration slow with annotations, later iterations faster.\n"
         f"7. End with all elements in final state + completion label.\n\n"
@@ -515,7 +534,7 @@ def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
         f"Output ONLY Python code, no markdown."
     )
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=MODEL_FAST,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -529,7 +548,7 @@ def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
 def call_llm_codegen(anim_ir: dict):
     prompt = build_prompt_codegen(anim_ir)
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL_PRIMARY,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -542,7 +561,7 @@ def call_llm_codegen(anim_ir: dict):
 def call_llm_codegen_with_usage(anim_ir: dict):
     prompt = build_prompt_codegen(anim_ir)
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL_PRIMARY,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
