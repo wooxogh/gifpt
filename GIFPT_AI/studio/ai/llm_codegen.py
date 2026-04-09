@@ -25,6 +25,100 @@ VALID_MANIM_COLORS = [
 
 BASE_DIR = Path(__file__).resolve().parent
 
+# Model constants — change here to upgrade across all codegen calls
+MODEL_PRIMARY = "gpt-4o"         # Used for main codegen + QA feedback
+MODEL_FAST = "gpt-4.1-mini"     # Used for fixes + few-shot algorithm codegen
+MAX_QA_ISSUES = 20               # Cap QA issues injected into retry prompt
+
+# Shared pedagogical rules — single source of truth for all prompts
+PEDAGOGICAL_RULES_FULL = """
+PEDAGOGICAL ANIMATION RULES (MOST IMPORTANT — these determine whether the video
+actually explains the concept or just looks like random motion):
+
+1. CAUSE BEFORE EFFECT: Always highlight/indicate the elements being compared or
+   examined BEFORE animating the resulting action (swap, insert, remove).
+   Pattern: Indicate(element) → annotation Text → transform animation → self.wait(0.5)
+   The viewer must see WHY something happens before seeing it happen.
+
+2. ONE OPERATION PER BEAT: Each self.play() call should animate exactly one logical
+   operation. NEVER combine a comparison highlight and a swap in the same self.play().
+   Bad:  self.play(Indicate(a), a.animate.move_to(b_pos))
+   Good: self.play(Indicate(a), Indicate(b))  # compare
+         self.play(a.animate.move_to(b_pos), b.animate.move_to(a_pos))  # swap
+
+3. VISUAL STATE ENCODING: Maintain a consistent color scheme that encodes algorithm
+   state throughout the entire animation. Elements change color to reflect state:
+   - GRAY or WHITE (default): unprocessed / waiting
+   - YELLOW_B: currently being examined / active
+   - RED_B: being swapped / modified / rejected
+   - GREEN_B: finalized / in correct position / accepted
+   Once an element is marked GREEN (finalized), it should STAY green unless the
+   algorithm logically revisits it. State colors are permanent markers, not decoration.
+
+4. INVARIANT MARKERS: Visually show the algorithm's invariant or progress. Examples:
+   - Sorting: a translucent bracket or background behind the sorted portion that grows
+   - Graph: visited nodes stay highlighted, frontier is distinct from unvisited
+   - DP: filled cells stay colored, empty cells remain gray
+   - Cache: occupied slots vs empty slots clearly distinguishable
+   Use a persistent visual element (SurroundingRectangle, Brace, or background color)
+   that grows/moves as the algorithm progresses.
+
+5. PROGRESSIVE PACING: First iteration of any loop should be slow with full annotations.
+   Subsequent iterations accelerate with fewer annotations:
+   - First pass: run_time=1.0-1.5, show comparison text, explain the decision
+   - Middle passes: run_time=0.5-0.8, highlight only, skip redundant text
+   - Final passes: run_time=0.3-0.5, fast to show the algorithm "clicking into place"
+
+6. STEP LABEL: Maintain a persistent label in the top-left corner showing the current
+   phase or iteration (e.g., "Pass 3 of 5", "Inserting key=7", "BFS: depth 2").
+   Update this label at each major step. This anchors the viewer in the algorithm's flow.
+   step_label = Text("Pass 1", font_size=20, color=GRAY).to_corner(UL)
+
+7. PAUSE AFTER STATE CHANGES: Insert self.wait(0.5-1.0) after every significant state
+   transition (swap, insertion, deletion, node visit). The viewer needs processing time.
+
+8. CONCRETE DATA: Use specific small numbers (5-8 elements). Choose values that trigger
+   interesting algorithm behavior:
+   - Sorting: include duplicates, nearly-sorted subsequences — e.g., [38, 27, 43, 3, 9, 82, 10]
+   - Graph: include cycles, varying degree — not just a simple chain
+   - DP: values that show overlapping subproblems clearly
+
+9. DIM THE IRRELEVANT: When the algorithm focuses on a sub-problem (partition in
+   quicksort, subtree in DFS, window in sliding window):
+   - Reduce opacity of elements outside the active range to 0.3
+   - Restore full opacity when scope expands back
+   element.animate.set_opacity(0.3)  # dim
+   element.animate.set_opacity(1.0)  # restore
+
+10. SHOW DATA STRUCTURE FIRST: Always create and display the full data structure
+    (array, graph, tree, table) BEFORE starting the algorithm. The viewer needs spatial
+    context before temporal action. Pattern:
+    - FadeIn the structure with labels
+    - self.wait(1) to let viewer absorb
+    - Then begin algorithm steps
+""".strip()
+
+# Condensed version for few-shot and user prompts (same rules, less detail)
+PEDAGOGICAL_RULES_CONDENSED = """
+PEDAGOGICAL RULES (the animation must EXPLAIN the algorithm, not just show motion):
+1. CAUSE BEFORE EFFECT: Highlight elements being compared BEFORE animating the
+   resulting action. Pattern: Indicate → annotate → transform → pause.
+2. ONE OPERATION PER BEAT: Each self.play() = one logical operation. Never combine
+   a comparison and a swap in one call.
+3. VISUAL STATE ENCODING: Color = algorithm state, not decoration.
+   GRAY=unprocessed, YELLOW_B=examining, RED_B=swapping, GREEN_B=finalized.
+   Finalized elements STAY their color.
+4. INVARIANT MARKERS: Show algorithm progress visually (sorted portion grows,
+   visited set expands, DP table fills). Use persistent visual elements.
+5. PROGRESSIVE PACING: First loop pass slow (run_time=1.0-1.5) with annotations.
+   Later passes faster (0.3-0.5) with less annotation.
+6. STEP LABEL: Persistent label top-left showing current phase/iteration.
+7. PAUSE AFTER STATE CHANGES: self.wait(0.5-1.0) after swaps, insertions, visits.
+8. SHOW STRUCTURE FIRST: FadeIn the full data structure, wait(1), then begin.
+9. DIM THE IRRELEVANT: set_opacity(0.3) on elements outside the active range.
+10. CONCRETE DATA: 5-8 specific elements that trigger interesting behavior.
+""".strip()
+
 # 같은 폴더에 있는 render_cnn_matrix.py 를 참조
 REFERENCE_PATH = BASE_DIR / "render_cnn_matrix.py"
 
@@ -43,8 +137,43 @@ Below is a **reference example** of excellent Manim code style
 {CNN_REFERENCE}
 </reference_example>
 
-CRITICAL COLOR RULES:
-You MUST ONLY use these exact Manim color constants:
+SCENE GEOMETRY (CRITICAL — objects outside this zone will be clipped):
+- Manim frame: horizontal [-7.1, 7.1], vertical [-4.0, 4.0]
+- Safe composition zone: horizontal [-6.0, 6.0], vertical [-3.2, 3.2]
+- Title zone: y = 3.2 to 3.8 (reserve top for titles)
+- Always leave 0.5-unit margins from scene edges
+
+LAYOUT RULES (CRITICAL — prevents overlapping and clipping):
+- ALWAYS use VGroup + .arrange() or .arrange_in_grid() for multi-element layouts.
+  NEVER manually position related items with hardcoded move_to() coordinates.
+- For N items in a row: total_width = N * item_width + (N-1) * gap.
+  If total_width > 12.0, SHRINK item size or use .scale_to_fit_width(12.0).
+- Default spacing: buff=0.2 to 0.4 between objects.
+- Use .next_to() for labels — never overlap a label with its parent object.
+- After building a VGroup, check: if group.width > 12.0 or group.height > 6.0,
+  call group.scale_to_fit_width(12.0) or group.scale_to_fit_height(6.0).
+- For side-by-side sections (e.g., input matrix + kernel + output), wrap each in
+  a VGroup, then arrange the top-level VGroup horizontally with buff=0.8.
+
+SCALING FOR VARIABLE DATA:
+- Array of 5 items: cell_size=0.8, font_size=24
+- Array of 10 items: cell_size=0.55, font_size=18
+- Array of 20+ items: cell_size=0.35, font_size=14, or show subset with "..."
+- Matrix up to 5x5: cell_size=0.6, font_size=18
+- Matrix 6x6+: cell_size=0.4, font_size=14
+- Always compute: total_size = N * cell_size + (N-1) * buff. Scale down if > 12.0.
+
+TEXT READABILITY:
+- Title: font_size 32-40, color=YELLOW or WHITE
+- Section labels: font_size 22-28
+- Data inside cells: font_size 14-22 (scale with cell size)
+- Annotations/notes: font_size 16-20
+- MINIMUM readable font_size: 14 (anything smaller is invisible at 480p)
+- For long text (>20 chars): use scale_to_fit_width() or abbreviate
+- Use WHITE text on dark shapes (BLUE_D, PURPLE_D), colored text on BLACK background
+
+COLOR RULES:
+Allowed Manim color constants:
 - Basic: WHITE, BLACK, GRAY, GREY
 - Blue: BLUE, BLUE_A, BLUE_B, BLUE_C, BLUE_D, BLUE_E
 - Red: RED, RED_A, RED_B, RED_C, RED_D, RED_E
@@ -57,30 +186,36 @@ You MUST ONLY use these exact Manim color constants:
 - Gold: GOLD, GOLD_A, GOLD_B, GOLD_C, GOLD_D, GOLD_E
 - Others: MAROON, LIGHT_GRAY, DARK_GRAY
 
-❌ FORBIDDEN COLORS (DO NOT USE):
-LIGHT_BLUE, DARK_BLUE, LIGHT_RED, DARK_RED, LIGHT_GREEN, DARK_GREEN,
-CYAN, MAGENTA, VIOLET, INDIGO, BROWN
+FORBIDDEN COLORS: LIGHT_BLUE, DARK_BLUE, LIGHT_RED, DARK_RED, LIGHT_GREEN,
+DARK_GREEN, CYAN, MAGENTA, VIOLET, INDIGO, BROWN
+Use _A/_B/_C/_D/_E suffixes for variations (e.g., BLUE_B for lighter blue).
 
-If you need variations, use the _A, _B, _C, _D, _E suffixes (e.g., BLUE_B for lighter blue).
+Semantic color assignments (use consistently throughout):
+- Primary elements: BLUE_C
+- Highlights/active: YELLOW_B
+- Success/complete: GREEN_B
+- Error/swap: RED_B
+- Secondary: PURPLE_B or TEAL_B
+- Neutral/borders: GRAY or WHITE
 
-IMPORTANT RULES:
+{PEDAGOGICAL_RULES_FULL}
+
+ANIMATION PACING:
+- Use LaggedStart with lag_ratio=0.15-0.3 for staggered reveals (looks professional)
+- Use ReplacementTransform instead of Transform (avoids ghost mobjects)
+- run_time: 0.2-0.4 for small transitions, 0.5-1.0 for major moves, 1.5-2.0 for complex transforms
+- Add self.wait(0.3-0.5) between logical sections
+- End with self.wait(2)
+
+CODE RULES:
 - Always include: `from manim import *`
-- Use ONLY the color constants listed above
 - NEVER use hex color strings like "#abcdef"
 - NEVER compare color objects or convert them to strings
-- DO NOT invent custom helper functions or animations not in Manim. Use only built-in mobjects and animations (FadeIn/FadeOut/Create/Transform/Indicate/MoveToTarget, mobject.animate, etc.). If you want to "plot/add a point", create a Dot at a valid position (optionally using Axes.coords_to_point) and play FadeIn/Move animations.
-
-
-Style rules you MUST follow:
-1. Must start with 'from manim import *'.
-2. Define a class named AlgorithmScene(Scene) with construct(self).
-3. Use same object naming conventions as the reference (Square, Text, SurroundingRectangle, etc.).
-4. Use consistent color palette from the valid colors above.
-5. Animate logically: FadeIn → Move → Transform → Highlight → FadeOut.
-6. Add descriptive labels (Text) near key components, similar to the CNN example.
-7. Avoid duplicate keyword arguments or redeclarations (like color twice).
-8. Output ONLY valid Python code (no markdown, no prose).
-9. End with self.wait(2).
+- DO NOT invent custom helper functions not in Manim. Use only built-in mobjects
+  and animations (FadeIn, FadeOut, Create, ReplacementTransform, Indicate, MoveToTarget,
+  mobject.animate, LaggedStart, Circumscribe, Flash, etc.).
+- Define class AlgorithmScene(Scene) with construct(self)
+- Output ONLY valid Python code (no markdown, no prose)
 """
 
 def build_prompt_codegen(anim_ir: dict) -> str:
@@ -139,9 +274,22 @@ CRITICAL Requirements:
 
 3. **Must visualize every operation sequentially** — no skipping.
 
-4. Add subtle pauses (`self.wait(0.3)`) between major steps.
+4. **Pedagogical structure** (the animation must TEACH, not just move objects):
+   a) Show the full data structure first (FadeIn all elements), then self.wait(1).
+   b) Add a step_label = Text("Step 1: ...", font_size=20, color=GRAY).to_corner(UL)
+      that updates at each major phase of the algorithm.
+   c) For each operation: FIRST highlight/Indicate the elements being examined (cause),
+      THEN animate the resulting action (effect), THEN self.wait(0.5).
+   d) Use color to encode state: YELLOW_B for "currently examining", RED_B for "swapping
+      or modifying", GREEN_B for "finalized / in correct position". Once GREEN, stay GREEN.
+   e) Show the algorithm's invariant: if a region grows (sorted portion, visited set),
+      keep it visually distinct (colored background, bracket, or persistent highlight).
+   f) First iteration of a loop: slow (run_time=1.0+), with annotation text explaining
+      the decision. Later iterations: faster (run_time=0.3-0.5), minimal annotation.
+   g) When focused on a sub-problem, dim elements outside the active range (set_opacity=0.3).
 
-5. End with fade-out of all objects.
+5. End with a completion state: all elements in final state (e.g., all GREEN for sorted),
+   a brief "Done!" or summary label, then self.wait(2).
 
 Output:
 - Write **only Python code** that defines `class AlgorithmScene(Scene)`.
@@ -220,7 +368,7 @@ def _build_few_shot_system_prompt(examples: list[dict]) -> str:
             f"\n<example_{i} tag=\"{ex.get('tag', '')}\" "
             f"pattern=\"{ex.get('pattern_type', '')}\" "
             f"quality=\"{ex.get('quality_score', '')}\">\n"
-            f"{ex.get('code', '').strip()}\n"
+            f"{(ex.get('code') or '').strip()}\n"
             f"</example_{i}>\n"
         )
 
@@ -235,32 +383,108 @@ animation pacing, and structural patterns closely.
 {examples_text}
 </reference_examples>
 
-CRITICAL COLOR RULES:
-You MUST ONLY use these exact Manim color constants:
-- Basic: WHITE, BLACK, GRAY, GREY
-- Blue: BLUE, BLUE_A, BLUE_B, BLUE_C, BLUE_D, BLUE_E
-- Red: RED, RED_A, RED_B, RED_C, RED_D, RED_E
-- Green: GREEN, GREEN_A, GREEN_B, GREEN_C, GREEN_D, GREEN_E
-- Yellow: YELLOW, YELLOW_A, YELLOW_B, YELLOW_C, YELLOW_D, YELLOW_E
-- Purple: PURPLE, PURPLE_A, PURPLE_B, PURPLE_C, PURPLE_D, PURPLE_E
-- Orange: ORANGE
-- Pink: PINK, LIGHT_PINK
-- Teal: TEAL, TEAL_A, TEAL_B, TEAL_C, TEAL_D, TEAL_E
-- Gold: GOLD, GOLD_A, GOLD_B, GOLD_C, GOLD_D, GOLD_E
-- Others: MAROON, LIGHT_GRAY, DARK_GRAY
+SCENE GEOMETRY (objects outside this zone will be clipped):
+- Safe composition zone: horizontal [-6.0, 6.0], vertical [-3.2, 3.2]
+- Title zone: y = 3.2 to 3.8 (reserve for title)
+- Leave 0.5-unit margins from edges
 
-FORBIDDEN COLORS: LIGHT_BLUE, DARK_BLUE, LIGHT_RED, DARK_RED, LIGHT_GREEN, DARK_GREEN,
-CYAN, MAGENTA, VIOLET, INDIGO, BROWN
+LAYOUT RULES:
+- ALWAYS use VGroup + .arrange() or .arrange_in_grid() for multi-element layouts.
+- For N items in a row: if total_width > 12.0, scale down with .scale_to_fit_width(12.0).
+- Use .next_to() for labels — never overlap a label with its parent object.
+- For side-by-side sections, wrap each in VGroup, arrange with buff=0.8.
+- Array of 5 items: cell_size=0.8. Array of 10+: cell_size=0.55. Array of 20+: cell_size=0.35.
 
-IMPORTANT RULES:
-- Always include: `from manim import *`
-- Use ONLY the color constants listed above
-- NEVER use hex color strings like "#abcdef"
+TEXT READABILITY:
+- Title: 32-40pt. Labels: 22-28pt. Data in cells: 14-22pt.
+- Minimum readable: 14pt (smaller is invisible at 480p)
+- WHITE text on dark shapes, colored text on BLACK background
+
+COLOR RULES:
+Allowed: WHITE, BLACK, GRAY/GREY, BLUE(_A-E), RED(_A-E), GREEN(_A-E), YELLOW(_A-E),
+PURPLE(_A-E), ORANGE, PINK, TEAL(_A-E), GOLD(_A-E), MAROON, LIGHT_GRAY, DARK_GRAY
+FORBIDDEN: LIGHT_BLUE, DARK_BLUE, CYAN, MAGENTA, VIOLET, INDIGO, BROWN
+
+{PEDAGOGICAL_RULES_CONDENSED}
+
+ANIMATION PACING:
+- Use LaggedStart(lag_ratio=0.15-0.3) for staggered reveals
+- Use ReplacementTransform instead of Transform
+- run_time: 0.2-0.4 small, 0.5-1.0 major, 1.5-2.0 complex
+- self.wait(0.3-0.5) between sections, self.wait(2) at end
+
+CODE RULES:
+- Always: `from manim import *`
+- NEVER use hex colors like "#abcdef"
 - DO NOT invent custom helper functions not in Manim
-- Define a class named AlgorithmScene(Scene) with construct(self)
-- Output ONLY valid Python code (no markdown, no prose)
-- End with self.wait(2)
+- Class: AlgorithmScene(Scene) with construct(self)
+- Output ONLY valid Python code (no markdown)
 """
+
+
+def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> str:
+    """Regenerate Manim code with Vision QA feedback injected.
+
+    Instead of blindly retrying codegen, this feeds the specific quality issues
+    (overlapping elements, unreadable text, missing steps, etc.) into the prompt
+    so the LLM can address them directly.
+    """
+    max_qa_issues = MAX_QA_ISSUES
+    if qa_issues is None:
+        normalized_issues = []
+    elif isinstance(qa_issues, str):
+        normalized = qa_issues.strip()
+        normalized_issues = [normalized] if normalized else []
+    else:
+        try:
+            normalized_issues = [
+                str(issue).strip()
+                for issue in qa_issues
+                if str(issue).strip()
+            ]
+        except TypeError:
+            issue_text = str(qa_issues).strip()
+            normalized_issues = [issue_text] if issue_text else []
+
+    normalized_issues = normalized_issues[:max_qa_issues]
+    issues_text = "\n".join(f"- {issue}" for issue in normalized_issues)
+    if not normalized_issues:
+        # No actual issues — fall back to standard codegen
+        return call_llm_codegen(anim_ir)
+    prompt = build_prompt_codegen(anim_ir)
+    prompt += (
+        f"\n\nIMPORTANT — The previous rendering had these quality issues detected by Vision QA:\n"
+        f"{issues_text}\n\n"
+        f"You MUST fix ALL of these issues. Apply these specific remedies:\n\n"
+        f"OVERLAP FIXES:\n"
+        f"- Wrap all related items in VGroup and use .arrange(RIGHT/DOWN, buff=0.4)\n"
+        f"- For side-by-side sections, increase buff to 0.8-1.2\n"
+        f"- After grouping, add: if group.width > 12: group.scale_to_fit_width(12)\n"
+        f"- Move labels with .next_to(obj, UP/DOWN, buff=0.3) — never stack on top\n\n"
+        f"TEXT READABILITY FIXES:\n"
+        f"- Data in cells: minimum font_size=14, increase to 18-22 if cells are large\n"
+        f"- Labels: minimum font_size=20\n"
+        f"- Use WHITE text on colored shapes, ensure contrast\n"
+        f"- Long text: call .scale_to_fit_width(max_width) after creation\n\n"
+        f"BOUNDARY FIXES:\n"
+        f"- All objects must stay within x=[-6.0, 6.0], y=[-3.2, 3.2]\n"
+        f"- Title at y=3.5, main content centered around y=0\n"
+        f"- After building full scene, verify no group exceeds safe zone\n\n"
+        f"ANIMATION FIXES:\n"
+        f"- If static: add LaggedStart animations, Indicate() for highlights\n"
+        f"- If steps missing: animate EVERY action in the IR sequentially\n"
+        f"- Use self.wait(0.3) between sections for visual clarity\n\n"
+        f"Output ONLY the corrected Python code."
+    )
+    resp = client.chat.completions.create(
+        model=MODEL_PRIMARY,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        timeout=90,
+    )
+    return post_process_manim_code(resp.choices[0].message.content)
 
 
 def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: str) -> str:
@@ -278,7 +502,7 @@ def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: st
         f"Keep the same visual intent. Output ONLY the corrected Python code, no markdown."
     )
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=MODEL_FAST,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": fix_prompt},
@@ -296,13 +520,21 @@ def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
     """
     system_prompt = _build_few_shot_system_prompt(examples)
     user_prompt = (
-        f"Generate a complete Manim scene that visually demonstrates the "
-        f"'{algorithm}' algorithm. Animate step-by-step. "
-        f"Follow the style and patterns of the reference examples above. "
+        f"Generate a complete Manim scene that TEACHES the '{algorithm}' algorithm.\n\n"
+        f"Structure your animation as an educational explanation:\n"
+        f"1. Show the full data structure first (FadeIn + wait), with a title.\n"
+        f"2. Add a step_label in the top-left corner that updates each phase.\n"
+        f"3. For each operation: HIGHLIGHT the elements being examined first (cause),\n"
+        f"   THEN animate the action (effect), THEN pause briefly.\n"
+        f"4. Use color to encode state: YELLOW_B=examining, RED_B=swapping, GREEN_B=finalized.\n"
+        f"5. Show the algorithm's invariant growing (sorted region, visited set, etc.).\n"
+        f"6. First loop iteration slow with annotations, later iterations faster.\n"
+        f"7. End with all elements in final state + completion label.\n\n"
+        f"Use 5-8 concrete data elements. Follow the reference examples above.\n"
         f"Output ONLY Python code, no markdown."
     )
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=MODEL_FAST,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -316,7 +548,7 @@ def call_llm_codegen_for_algorithm(algorithm: str, examples: list[dict]) -> str:
 def call_llm_codegen(anim_ir: dict):
     prompt = build_prompt_codegen(anim_ir)
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL_PRIMARY,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -329,7 +561,7 @@ def call_llm_codegen(anim_ir: dict):
 def call_llm_codegen_with_usage(anim_ir: dict):
     prompt = build_prompt_codegen(anim_ir)
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL_PRIMARY,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},

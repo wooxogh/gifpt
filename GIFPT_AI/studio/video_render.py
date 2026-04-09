@@ -7,12 +7,7 @@ import re
 from pathlib import Path
 import logging
 
-from studio.ai.llm_domain import call_llm_detect_domain
-from studio.ai.llm import call_llm_domain_ir
-from studio.ai.render_cnn_matrix import render_cnn_matrix
-from studio.ai.render_sorting import render_sorting
-from studio.ai.llm_domain import build_sorting_trace_ir
-from studio.ai.qa import validate_pseudocode_ir, validate_anim_ir, vision_qa, IRValidationError
+from studio.ai.qa import validate_pseudocode_ir, validate_anim_ir, vision_qa
 
 logger = logging.getLogger(__name__)
 
@@ -186,49 +181,29 @@ def render_fallback(output_dir: Path, output_name: str, algorithm_name: str = "A
 
 def render_video_from_instructions(instructions: str) -> str:
     """
-    PDF 분석 파이프라인에서 전달된 'video instructions' 텍스트를 받아
-    main.py의 /generate 로직과 동일한 파이프라인으로 영상을 생성한다.
+    Custom prompt → generic pipeline (pseudocode IR → anim IR → codegen → render).
 
-    - cnn_param  → call_llm_domain_ir + render_cnn_matrix
-    - sorting    → call_llm_sort_trace + render_sorting
-    - 기타       → pseudocode_ir → anim_ir → manim_code → manim 실행
+    Domain classification is intentionally skipped here. It caused misclassification
+    crashes (e.g., LSM-Tree → sorting → empty trace → Manim crash). The generic
+    pipeline handles all algorithm types through the IR abstraction.
+
+    When Vision QA fails, the QA issues are fed back into codegen so the LLM
+    can fix specific problems instead of blindly retrying.
     """
-    user_text = _sanitize_text(instructions)
-
-    # 1) 도메인 결정
-    domain, is_3d = call_llm_detect_domain(user_text)
-    logger.info("🎯 detected domain for video_render: %s (is_3d=%s)", domain, is_3d)
-
-    # 2) 도메인별 처리 -----------------------------
-
-    # (1) CNN 파라미터 전용
-    if domain == "cnn_param":
-        ir = call_llm_domain_ir("cnn_param", user_text)
-        params = ir["ir"]["params"]
-
-        video_path = render_cnn_matrix(params)
-        logger.info("🎬 CNN video rendered at %s", video_path)
-        return video_path
-
-    # (2) 정렬 전용 파이프라인 (trace → render_sorting)
-    if domain == "sorting":
-        sort_trace = build_sorting_trace_ir(user_text)
-        video_path = render_sorting(sort_trace)
-        logger.info("🎬 sorting video rendered at %s", video_path)
-        return video_path
-
-        # 3) 일반 알고리즘/모델 시각화 (pseudocode → anim_ir → manim 코드)
-    #    QA: IR 검증 실패 시 해당 단계 재생성, Vision QA 실패 시 전체 재생성
-
     from studio.ai.llm_pseudocode import call_llm_pseudocode_ir_with_usage
     from studio.ai.llm_anim_ir import call_llm_anim_ir_with_usage
-    from studio.ai.llm_codegen import call_llm_codegen_with_usage
+    from studio.ai.llm_codegen import call_llm_codegen_with_usage, call_llm_codegen_fix, call_llm_codegen_with_qa_feedback
 
-    MAX_PIPELINE_ATTEMPTS = 2  # 전체 파이프라인 재시도 (Vision QA 실패 시)
+    user_text = _sanitize_text(instructions)
+
+    MAX_PIPELINE_ATTEMPTS = 2  # Vision QA 실패 시 재시도
     MAX_IR_RETRIES = 2         # 각 IR 단계 재시도
 
+    # Persistent state across pipeline attempts for QA feedback loop
+    prev_qa_issues: list[str] = []
+
     for pipeline_attempt in range(1, MAX_PIPELINE_ATTEMPTS + 1):
-        logger.info("[Pipeline] attempt %d/%d domain=%s", pipeline_attempt, MAX_PIPELINE_ATTEMPTS, domain)
+        logger.info("[Pipeline] attempt %d/%d (generic)", pipeline_attempt, MAX_PIPELINE_ATTEMPTS)
 
         # ── Step 1: Pseudocode IR + validation ──
         pseudo_ir = None
@@ -265,8 +240,6 @@ def render_video_from_instructions(instructions: str) -> str:
                 logger.warning("[Anim IR] proceeding with last attempt despite issues")
 
         # ── Step 3: Codegen + Render with self-healing ──
-        from studio.ai.llm_codegen import call_llm_codegen_fix
-
         manim_code = None
         video_path = None
         last_error_type = None
@@ -279,12 +252,15 @@ def render_video_from_instructions(instructions: str) -> str:
             start = time.perf_counter()
 
             if attempt == 1:
-                code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
+                if prev_qa_issues:
+                    # QA feedback loop: use issues from previous pipeline attempt
+                    logger.info("[CodeGen] using QA feedback from previous attempt: %s", prev_qa_issues[:3])
+                    code_try = call_llm_codegen_with_qa_feedback(anim_ir, prev_qa_issues)
+                else:
+                    code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
             elif last_error_type is not None:
-                # Self-heal: feed the render error back to LLM for correction
                 code_try = call_llm_codegen_fix(manim_code, last_error_type, last_stderr)
             else:
-                # Previous attempt failed static validation (no render error) — retry codegen
                 code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
 
             issues = validate_manim_code_basic(code_try)
@@ -295,14 +271,14 @@ def render_video_from_instructions(instructions: str) -> str:
                                attempt, max_codegen_attempts, len(issues), dur)
                 manim_code = code_try
                 if attempt < max_codegen_attempts:
-                    continue  # retry codegen without rendering
+                    continue
             else:
                 manim_code = code_try
                 logger.info("[CodeGen] attempt %d passed %.2fs", attempt, dur)
 
             # Debug: save generated code
             debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
-            debug_path = debug_dir / f"debug_generated_code_{domain}.py"
+            debug_path = debug_dir / "debug_generated_code_generic.py"
             try:
                 debug_dir.mkdir(parents=True, exist_ok=True)
                 debug_path.write_text(manim_code or "", encoding="utf-8")
@@ -321,15 +297,16 @@ def render_video_from_instructions(instructions: str) -> str:
                                attempt, max_codegen_attempts, e.error_type)
                 if attempt == max_codegen_attempts:
                     logger.warning("[Render] all attempts exhausted — rendering fallback")
-                    video_path = render_fallback(output_dir, output_name, algorithm_name=domain)
+                    video_path = render_fallback(output_dir, output_name, algorithm_name="Algorithm")
 
         if video_path is None:
-            video_path = render_fallback(output_dir, output_name, algorithm_name=domain)
+            video_path = render_fallback(output_dir, output_name, algorithm_name="Algorithm")
 
         logger.info("[Render] video at %s", video_path)
 
-        # ── Step 5: Vision QA ──
-        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0, domain=domain)
+        # ── Step 4: Vision QA ──
+        qa_domain = anim_ir.get("metadata", {}).get("domain") if isinstance(anim_ir, dict) else None
+        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0, domain=qa_domain)
         logger.info("[Vision QA] score=%.1f passed=%s summary=%s",
                     qa_result["score"], qa_result["passed"], qa_result["summary"])
 
@@ -338,14 +315,22 @@ def render_video_from_instructions(instructions: str) -> str:
                 logger.info("[Vision QA] PASSED (score=%.1f) — returning video", qa_result["score"])
             return video_path
 
-        # QA failed — retry entire pipeline if attempts remain
+        # QA failed — normalize issues for stable QA feedback loop
+        raw_issues = qa_result.get("issues", [])
+        if isinstance(raw_issues, list):
+            prev_qa_issues = [str(issue).strip() for issue in raw_issues if str(issue).strip()]
+        elif isinstance(raw_issues, str):
+            normalized = raw_issues.strip()
+            prev_qa_issues = [normalized] if normalized else []
+        else:
+            prev_qa_issues = []
+
         if pipeline_attempt < MAX_PIPELINE_ATTEMPTS:
-            logger.warning("[Vision QA] FAILED (score=%.1f) — retrying pipeline. Issues: %s",
-                           qa_result["score"], qa_result["issues"])
+            logger.warning("[Vision QA] FAILED (score=%.1f) — retrying with QA feedback. Issues: %s",
+                           qa_result["score"], prev_qa_issues)
         else:
             logger.warning("[Vision QA] FAILED (score=%.1f) — no retries left, returning best effort. Issues: %s",
-                           qa_result["score"], qa_result["issues"])
+                           qa_result["score"], prev_qa_issues)
             return video_path
 
-    # Should not reach here, but just in case
     return video_path
