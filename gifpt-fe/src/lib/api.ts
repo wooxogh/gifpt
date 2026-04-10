@@ -76,7 +76,7 @@ export async function fetchJobStatus(jobId: number, token?: string | null): Prom
 export type GalleryItem = {
   id: number
   algorithm: string
-  algorithmSlug: string
+  algorithmSlug: string | null
   videoUrl: string
   createdAt: string
 }

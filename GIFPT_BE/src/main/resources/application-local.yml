@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/gifpt?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true&useUnicode=true
-    username: root
-    password: Qwerpoiu2@
+    url: ${GIFPT_MYSQL_URL:jdbc:mysql://127.0.0.1:3306/gifpt?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true&useUnicode=true}
+    username: ${GIFPT_MYSQL_USER:root}
+    password: ${GIFPT_MYSQL_PASSWORD:change_me_local}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10

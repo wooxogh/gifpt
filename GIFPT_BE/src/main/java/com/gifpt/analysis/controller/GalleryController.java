@@ -31,7 +31,7 @@ public class GalleryController {
     ) {
         var pageable = PageRequest.of(page, Math.min(size, 48), Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<GalleryItemResponse> result = analysisJobRepository
-                .findByStatus(AnalysisStatus.SUCCESS, pageable)
+            .findByStatusAndAlgorithmSlugIsNotNull(AnalysisStatus.SUCCESS, pageable)
                 .map(GalleryController::toResponse);
         return ResponseEntity.ok(result);
     }

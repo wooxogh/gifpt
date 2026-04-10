@@ -25,7 +25,7 @@ pip install pymysql
 # 2. set DB credentials (matches GIFPT_BE/src/main/resources/application-local.yml)
 export GIFPT_MYSQL_HOST=127.0.0.1
 export GIFPT_MYSQL_USER=root
-export GIFPT_MYSQL_PASSWORD='Qwerpoiu2@'
+export GIFPT_MYSQL_PASSWORD='your_local_mysql_password'
 export GIFPT_MYSQL_DB=gifpt
 
 # 3. seed_audit needs the same env that the Celery worker uses
@@ -34,6 +34,7 @@ export OPENAI_API_KEY=sk-...
 ```
 
 Stash the env vars in your shell rc or a `.envrc` so you don't re-export weekly.
+Never commit real secrets to the repository.
 
 ## The weekly routine
 
