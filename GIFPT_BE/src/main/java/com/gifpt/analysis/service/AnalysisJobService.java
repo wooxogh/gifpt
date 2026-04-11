@@ -11,6 +11,7 @@ import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AnalysisJobService {
   private final AnalysisJobRepository repo;
 

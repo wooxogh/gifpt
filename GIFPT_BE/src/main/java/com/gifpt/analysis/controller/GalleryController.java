@@ -7,6 +7,7 @@ import com.gifpt.analysis.repository.AnalysisJobRepository;
 import com.gifpt.security.auth.user.CustomUserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.lang.Nullable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +43,7 @@ public class GalleryController {
      */
     @GetMapping("/mine")
     public ResponseEntity<?> mine(
-            @AuthenticationPrincipal CustomUserPrincipal user,
+            @AuthenticationPrincipal @Nullable CustomUserPrincipal user,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size
     ) {

@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.Map;
 
 @Service
+@SuppressWarnings("null")
 public class JwtService {
 
   private final SecretKey key;

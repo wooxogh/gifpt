@@ -11,16 +11,13 @@ public class S3StorageService {
 
     private final S3Client s3Client;
     private final String bucket;
-    private final String baseUrl;
 
     public S3StorageService(
         S3Client s3Client,
-        @Value("${gifpt.s3.bucket}") String bucket,
-        @Value("${gifpt.s3.base-url}") String baseUrl
+        @Value("${gifpt.s3.bucket}") String bucket
     ) {
         this.s3Client = s3Client;
         this.bucket = bucket;
-        this.baseUrl = baseUrl;
     }
 
     /**
