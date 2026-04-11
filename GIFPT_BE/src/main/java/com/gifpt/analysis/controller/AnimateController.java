@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/animate")
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AnimateController {
 
     private static final int MAX_ALGORITHM_LENGTH = 200;
@@ -35,7 +37,7 @@ public class AnimateController {
 
     public record AnimateRequest(
             @NotBlank @Size(max = MAX_ALGORITHM_LENGTH) String algorithm,
-            @Size(max = MAX_PROMPT_LENGTH) String prompt
+            @Nullable @Size(max = MAX_PROMPT_LENGTH) String prompt
     ) {}
 
     private final S3StorageService s3StorageService;
@@ -58,7 +60,7 @@ public class AnimateController {
     @GetMapping
     public ResponseEntity<?> animate(
             @RequestParam String algorithm,
-            @AuthenticationPrincipal CustomUserPrincipal user
+            @AuthenticationPrincipal @Nullable CustomUserPrincipal user
     ) {
         return doAnimate(algorithm, null, user);
     }
@@ -73,15 +75,16 @@ public class AnimateController {
     @PostMapping
     public ResponseEntity<?> animateWithPrompt(
             @Valid @RequestBody AnimateRequest body,
-            @AuthenticationPrincipal CustomUserPrincipal user
+            @AuthenticationPrincipal @Nullable CustomUserPrincipal user
     ) {
         String algorithm = body.algorithm().trim();
-        String prompt = body.prompt() == null ? null : body.prompt().trim();
+        String rawPrompt = body.prompt();
+        String prompt = rawPrompt == null ? null : rawPrompt.trim();
         if (prompt != null && prompt.isBlank()) prompt = null;
         return doAnimate(algorithm, prompt, user);
     }
 
-    private ResponseEntity<?> doAnimate(String algorithm, String prompt, CustomUserPrincipal user) {
+    private ResponseEntity<?> doAnimate(String algorithm, @Nullable String prompt, @Nullable CustomUserPrincipal user) {
         String slug = normalizeSlug(algorithm);
         if (slug.isEmpty()) {
             return ResponseEntity.badRequest()
@@ -177,7 +180,7 @@ public class AnimateController {
     @GetMapping("/status/{jobId}")
     public ResponseEntity<?> getStatus(
             @PathVariable Long jobId,
-            @AuthenticationPrincipal CustomUserPrincipal user
+            @AuthenticationPrincipal @Nullable CustomUserPrincipal user
     ) {
         AnalysisJob job = analysisJobRepository.findById(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));

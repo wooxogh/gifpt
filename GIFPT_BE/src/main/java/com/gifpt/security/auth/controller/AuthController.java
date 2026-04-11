@@ -13,11 +13,13 @@ import com.gifpt.security.auth.service.JwtService;
 import com.gifpt.security.auth.service.RefreshTokenService;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.lang.Nullable;
 import java.util.Map;
 import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/v1/auth")
+@SuppressWarnings("null")
 public class AuthController {
 
   private final AuthenticationManager authManager;
@@ -100,7 +102,7 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<?> logout(@CookieValue(value="refreshToken", required=false) String rawRefresh) {
+  public ResponseEntity<?> logout(@CookieValue(value="refreshToken", required=false) @Nullable String rawRefresh) {
     if (rawRefresh != null) refreshService.revoke(rawRefresh);
     // 쿠키 제거
     ResponseCookie delete = ResponseCookie.from("refreshToken", "").httpOnly(true).path("/").maxAge(0).build();
@@ -110,7 +112,7 @@ public class AuthController {
   }
 
   @GetMapping("/me")
-  public ResponseEntity<?> me(Authentication auth) {
+  public ResponseEntity<?> me(@Nullable Authentication auth) {
     if (auth == null) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "unauthorized"));
     }

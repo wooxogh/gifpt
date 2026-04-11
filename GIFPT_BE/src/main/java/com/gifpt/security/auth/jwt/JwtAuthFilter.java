@@ -17,6 +17,7 @@ import com.gifpt.security.auth.service.JwtService;
 import java.io.IOException;
 
 @Component
+@SuppressWarnings("null")
 public class JwtAuthFilter extends OncePerRequestFilter {
 
   private final JwtService jwtService;

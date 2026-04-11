@@ -146,39 +146,38 @@ def run_manim_code(code: str, output_dir: Path, output_name: str | None = None) 
     if output_name is None:
         output_name = f"video_{int(_time.time())}.mp4"
 
-    last_stderr = ""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+        tmp.write(code)
+        tmp_path = tmp.name
 
-    for attempt in range(1, 4):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
-            tmp.write(code)
-            tmp_path = tmp.name
+    try:
+        subprocess.run(
+            ["manim", "-ql", tmp_path, "AlgorithmScene", "--format", "mp4", "-o", output_name],
+            cwd=output_dir, check=True, capture_output=True, text=True, timeout=180,
+        )
 
-        try:
-            subprocess.run(
-                ["manim", "-ql", tmp_path, "AlgorithmScene", "--format", "mp4", "-o", output_name],
-                cwd=output_dir, check=True, capture_output=True, text=True, timeout=180,
-            )
+        tmp_name = Path(tmp_path).stem
+        candidate = output_dir / "media" / "videos" / tmp_name / "480p15" / output_name
+        if candidate.exists():
+            return str(candidate.resolve())
+        matches = list(output_dir.rglob(output_name))
+        if matches:
+            return str(matches[0].resolve())
 
-            tmp_name = Path(tmp_path).stem
-            candidate = output_dir / "media" / "videos" / tmp_name / "480p15" / output_name
-            if candidate.exists():
-                return str(candidate.resolve())
-            matches = list(output_dir.rglob(output_name))
-            if matches:
-                return str(matches[0].resolve())
+    except subprocess.CalledProcessError as e:
+        last_stderr = e.stderr or ""
+        err = classify_runtime_error(last_stderr)
+        logger.warning("run_manim_code failed: %s", err)
+        raise ManimRenderError(err["error_type"], last_stderr[-2000:], code)
 
-        except subprocess.CalledProcessError as e:
-            last_stderr = e.stderr or ""
-            err = classify_runtime_error(last_stderr)
-            logger.warning("run_manim_code attempt %d/3 failed: %s", attempt, err)
+    except subprocess.TimeoutExpired:
+        logger.warning("run_manim_code timed out")
+        raise ManimRenderError("timeout", "render timed out after 180s", code)
 
-        except subprocess.TimeoutExpired:
-            last_stderr = "render timed out after 180s"
-            logger.warning("run_manim_code attempt %d/3 timed out", attempt)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
-    # All attempts exhausted — raise with error details for self-healing
-    err = classify_runtime_error(last_stderr)
-    raise ManimRenderError(err["error_type"], last_stderr[-2000:], code)
+    raise ManimRenderError("runtime", "render produced no video file", code)
 
 
 def render_fallback(output_dir: Path, output_name: str, algorithm_name: str = "Algorithm") -> str:

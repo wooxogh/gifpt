@@ -215,7 +215,95 @@ CODE RULES:
   and animations (FadeIn, FadeOut, Create, ReplacementTransform, Indicate, MoveToTarget,
   mobject.animate, LaggedStart, Circumscribe, Flash, etc.).
 - Define class AlgorithmScene(Scene) with construct(self)
-- Output ONLY valid Python code (no markdown, no prose)
+- Output ONLY valid Python code (no markdown, no prose, no trailing explanation text)
+
+SAFE BOUNDS — all content must stay within these coordinates:
+  x: [-6.5, 6.5], y: [-3.5, 3.5]
+  If placing N elements horizontally, each element width ≤ 13.0 / N.
+  If placing N elements vertically, each element height ≤ 7.0 / N.
+  Always verify your layout arithmetic stays in bounds before coding.
+
+MANIM CE 0.19.0 API CONSTRAINTS (violating these causes render failures):
+- NO LaTeX: Never use Matrix, IntegerTable, MathTex, or Tex. Use only Text() for
+  all text and numbers. Build grids/vectors manually with VGroup + Rectangle + Text.
+- .deepcopy() does not exist. Use .copy() instead.
+- .set_text() does not exist on Text objects. Create a new Text and use
+  Transform(old_text, new_text) to update displayed text.
+- Line and Arrow start/end must be coordinate arrays, NOT Mobject objects.
+  CORRECT: Line(start=rect.get_center(), end=other.get_center())
+  WRONG:   Line(start=rect, end=other)
+- SurroundingRectangle expects Mobject(s). When selecting a subset of a VGroup,
+  wrap in VGroup first: SurroundingRectangle(VGroup(*items), color=YELLOW)
+- self.play() must receive at least 1 animation. Before unpacking a list,
+  guard it: if anims: self.play(*anims)
+- Every self.play() must have run_time > 0. If computing run_time dynamically,
+  use max(computed, 0.1).
+- Do NOT use DashedLine, DashedArrow, CurvedArrow, ArcBetweenPoints, or TracedPath.
+  Use Line or Arrow instead.
+- Do NOT access self.camera.frame. The default Scene camera does not have a frame
+  attribute. Never use self.camera.frame.animate or self.camera.frame.set().
+- Do NOT create a text-only summary phase at the end (e.g., 3 lines of Text on a
+  blank screen). It adds no visual value. End the animation after the last
+  substantive phase.
+
+MATRIX/GRID HELPER PATTERN (use this when building grids of numbers):
+Define as a method on the scene class:
+
+    def make_grid(self, rows_data, cell_w=1.0, cell_h=0.6, color=WHITE, font_size=22):
+        rows = VGroup()
+        for r, row in enumerate(rows_data):
+            row_group = VGroup()
+            for c, val in enumerate(row):
+                rect = Rectangle(width=cell_w, height=cell_h, stroke_color=color, stroke_width=1)
+                txt = Text(str(val), font_size=font_size, color=color)
+                cell = VGroup(rect, txt)
+                cell.move_to([c * cell_w, -r * cell_h, 0])
+                row_group.add(cell)
+            rows.add(row_group)
+        return rows
+
+Access: grid[row][col] -> VGroup(rect, txt). grid[row][col][0] = Rectangle,
+grid[row][col][1] = Text. Highlight a row: SurroundingRectangle(grid[1], color=YELLOW).
+Always call make_grid THEN move_to THEN place labels relative to the grid.
+
+ROW/COLUMN LABEL ALIGNMENT (labels must line up with their row or column):
+- Row label for row i: label.move_to(grid[i].get_center()).align_to(grid, LEFT).shift(LEFT * 0.8)
+- Column label for col j: label.move_to(grid[0][j].get_center()).align_to(grid, UP).shift(UP * 0.6)
+  Do NOT place all labels as a single VGroup arranged independently — each label
+  must be anchored to the y-center of its row or x-center of its column.
+
+VERTICAL SPACING FOR MULTIPLE MATRICES:
+- When stacking 3+ matrices vertically (e.g., Q/K/V), use at least 2.0 units
+  between each center y-position. With cell_h=0.5 and 3 rows, each grid is ~1.5
+  tall, so y spacing of 1.8 causes overlap. Use y offsets like 2.2, 0.0, -2.2.
+
+3D DEPTH STYLE (for stacked layers like multi-head or encoder layers):
+Use this ONLY when showing "same structure repeated in layers" (e.g., multiple
+attention heads, encoder/decoder layer stacks). Do NOT use for Q/K/V side-by-side.
+
+How it works:
+1. Build each layer as a normal make_grid.
+2. Apply skew to each grid: grid.apply_matrix([[1, 0.15], [0, 1]])
+3. Stack layers with slight diagonal offset (RIGHT * 0.3 + UP * 0.3 per layer).
+4. Add layers back-to-front so the frontmost layer renders on top.
+5. Labels go OUTSIDE the grid, positioned AFTER skew and shift:
+     label.next_to(grid, RIGHT, buff=0.3)
+6. To move a layer, group grid + label into a VGroup and move the group.
+7. Do NOT add Polygon side/top faces. Depth comes only from skew + overlap.
+
+PHASE TRANSITION RULES:
+- Do NOT impose a total time limit on the animation. Let each phase take as long
+  as it needs. The prompt specifies Wait times per phase — follow those, but do not
+  compress or rush content to fit a target duration.
+- Between phases, clear the ENTIRE screen with this exact pattern:
+    self.play(*[FadeOut(mob) for mob in self.mobjects])
+  This removes ALL elements. Then re-add title and caption fresh for the new phase.
+  Do NOT try to FadeOut individual elements — you WILL forget some.
+- Caption is a single Text(font_size=20) at y=-2.8, updated via Transform(caption, new_cap).
+  new_cap must use font_size=20 and .move_to(DOWN*2.8) before Transform.
+- Title label at top-left corner (UL). Re-create it each phase after clearing.
+- When using Transform on Text inside grid cells, use ReplacementTransform
+  instead of Transform to avoid ghost text artifacts.
 """
 
 def build_prompt_codegen(anim_ir: dict) -> str:
@@ -318,19 +406,45 @@ _INVALID_COLOR_MAP = {
 _UNKNOWN_HELPERS = [
     'AddPointToGraph', 'PlotPoint', 'CreateGraph', 'AnimateCurvePoint',
     'DrawArrowBetween', 'ShowValueOnPlot',
+    # LLM-hallucinated animation/class names
+    'Highlight', 'Focus', 'Emphasize',
+    'MobjectTable', 'IntegerTable',
 ]
 
 
 def post_process_manim_code(code: str) -> str:
     """Clean up LLM-generated Manim code.
 
-    - Strips markdown fences
+    - Strips markdown fences and trailing prose
     - Replaces invalid color names with valid Manim equivalents
     - Removes hex color strings
     - Forces class name to AlgorithmScene
-    - Removes unknown helper calls (replaces with self.wait(0.1))
+    - Removes unknown helper calls
+    - Fixes common Manim CE 0.19.0 API mistakes (.deepcopy, DashedLine, etc.)
     """
     code = code.replace("```python", "").replace("```", "").strip()
+
+    # Remove trailing non-code text after the class definition
+    # Find the last line that's part of the Python code (indented or empty)
+    lines = code.split('\n')
+    last_code_line = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        raw_line = lines[i]
+        stripped = raw_line.strip()
+        # Indented lines or empty lines are part of the code body
+        if stripped == '' or raw_line[0:1] in (' ', '\t'):
+            last_code_line = i + 1
+            break
+        # Top-level Python constructs are valid code
+        if stripped.startswith(('#', 'from ', 'import ', 'class ', 'def ', '@')):
+            last_code_line = i + 1
+            break
+        # If we hit a line that looks like prose (top-level, not a Python keyword), trim from here
+        _CODE_KEYWORDS = ('if ', 'for ', 'while ', 'return ', 'self.', 'try:', 'except ', 'else:', 'elif ', 'with ', 'raise ', 'yield ', 'pass', 'break', 'continue')
+        if not any(stripped.startswith(kw) for kw in _CODE_KEYWORDS):
+            last_code_line = i
+            break
+    code = '\n'.join(lines[:last_code_line]).rstrip()
 
     for invalid, valid in _INVALID_COLOR_MAP.items():
         code = re.sub(rf'\bcolor\s*=\s*{invalid}\b', f'color={valid}', code)
@@ -341,21 +455,32 @@ def post_process_manim_code(code: str) -> str:
     if re.search(r'class\s+\w+\s*\(ThreeDScene\)', code):
         code = re.sub(r'class\s+\w+\s*\(ThreeDScene\)', 'class AlgorithmScene(ThreeDScene)', code)
     else:
-        code = re.sub(r'class\s+\w+Scene\s*\(Scene\)', 'class AlgorithmScene(Scene)', code)
+        code = re.sub(r'class\s+\w+\s*\(Scene\)', 'class AlgorithmScene(Scene)', code)
 
     for name in _UNKNOWN_HELPERS:
         code = re.sub(
-            rf'^\s*self\.play\(\s*{name}\([^)]*\)\s*\)\s*$',
-            '        self.wait(0.1)',
+            rf'^(\s*)self\.play\(\s*{name}\([^)]*\)\s*\)\s*$',
+            r'\1self.wait(0.1)',
             code,
             flags=re.M,
         )
         code = re.sub(
-            rf'^\s*{name}\([^)]*\)\s*$',
-            '        self.wait(0.1)',
+            rf'^(\s*){name}\([^)]*\)\s*$',
+            r'\1self.wait(0.1)',
             code,
             flags=re.M,
         )
+
+    # Fix .deepcopy() → .copy()
+    code = code.replace('.deepcopy()', '.copy()')
+
+    # Fix DashedLine → Line, DashedArrow → Arrow
+    code = re.sub(r'\bDashedLine\b', 'Line', code)
+    code = re.sub(r'\bDashedArrow\b', 'Arrow', code)
+    code = re.sub(r'\bCurvedArrow\b', 'Arrow', code)
+
+    # Remove dash_length kwarg (not supported in Manim CE)
+    code = re.sub(r',\s*dash_length\s*=\s*[^,\)]+', '', code)
 
     return code
 
@@ -418,7 +543,17 @@ CODE RULES:
 - NEVER use hex colors like "#abcdef"
 - DO NOT invent custom helper functions not in Manim
 - Class: AlgorithmScene(Scene) with construct(self)
-- Output ONLY valid Python code (no markdown)
+- Output ONLY valid Python code (no markdown, no trailing prose)
+
+MANIM CE 0.19.0 API CONSTRAINTS:
+- NO LaTeX: Never use Matrix, IntegerTable, MathTex, or Tex. Use Text() only.
+  Build grids manually with VGroup + Rectangle + Text.
+- .deepcopy() → use .copy(). .set_text() → create new Text + Transform.
+- Line/Arrow start/end must be coordinates, NOT Mobjects.
+- SurroundingRectangle expects Mobject(s), wrap subsets in VGroup.
+- self.play() must have at least 1 animation and run_time > 0.
+- No DashedLine, DashedArrow, CurvedArrow. Use Line or Arrow.
+- FadeOut previous phase elements before showing new ones.
 """
 
 

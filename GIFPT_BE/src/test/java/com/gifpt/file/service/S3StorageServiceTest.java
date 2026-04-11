@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class S3StorageServiceTest {
 
     @Mock
@@ -26,7 +27,7 @@ class S3StorageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new S3StorageService(s3Client, "gifpt-demo", "https://gifpt-demo.s3.amazonaws.com");
+        service = new S3StorageService(s3Client, "gifpt-demo");
     }
 
     @Test

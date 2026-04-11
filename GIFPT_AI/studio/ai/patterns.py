@@ -39,24 +39,3 @@ DOMAIN_TO_PATTERN = {
     # Dynamic programming table은 grid
     "dynamic_programming": PatternType.GRID,
 }
-
-VALID_PATTERNS = {
-    "grid": PatternType.GRID,
-    "sequence": PatternType.SEQUENCE,
-    "seq_attention": PatternType.SEQ_ATTENTION,
-    "flow": PatternType.FLOW,
-    "graph": PatternType.GRAPH,  # 🆕 GRAPH 패턴 추가
-}
-
-def resolve_pattern(domain: str, llm_pattern: str) -> PatternType:
-    # 1) 도메인 강제 매핑이 있으면 도메인 우선
-    if domain in DOMAIN_TO_PATTERN:
-        return DOMAIN_TO_PATTERN[domain]
-
-    # 2) LLM 패턴이 정상적으로 감지된 경우
-    llm_pattern = llm_pattern.lower()
-    if llm_pattern in VALID_PATTERNS:
-        return VALID_PATTERNS[llm_pattern]
-
-    # 3) 둘 다 아닌 경우 → fallback: FLOW 패턴
-    return PatternType.FLOW
