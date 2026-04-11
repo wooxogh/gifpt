@@ -260,47 +260,151 @@ def validate_anim_ir_deep(ir: dict) -> list[str]:
 
 # ── 2. Vision QA ──────────────────────────────────────────────────────────────
 
-DOMAIN_QA_CRITERIA = {
-    "sorting": (
-        "\nDOMAIN-SPECIFIC CHECKS for SORTING visualization:\n"
-        "- Are array elements clearly visible as distinct cells with values?\n"
-        "- Can you see comparison/swap operations being performed step by step?\n"
-        "- Is the progression from unsorted to sorted state visible?\n"
-        "- Are compared/swapped elements highlighted or color-coded?\n"
-    ),
-    "graph_traversal": (
-        "\nDOMAIN-SPECIFIC CHECKS for GRAPH visualization:\n"
-        "- Are nodes clearly visible as circles/shapes with labels?\n"
-        "- Are edges/connections between nodes drawn correctly?\n"
-        "- Is the traversal order visible (e.g., visited nodes change color)?\n"
-        "- Are queue/stack states shown if applicable?\n"
-    ),
-    "cnn_param": (
-        "\nDOMAIN-SPECIFIC CHECKS for CNN visualization:\n"
-        "- Are layers (input, convolution, pooling, output) distinguishable?\n"
-        "- Are kernel/filter operations animated (sliding window)?\n"
-        "- Are dimensions/shapes annotated on each layer?\n"
-        "- Is the data flow direction clear (left to right or similar)?\n"
-    ),
-    "dynamic_programming": (
-        "\nDOMAIN-SPECIFIC CHECKS for DP visualization:\n"
-        "- Is a table/grid structure visible showing subproblem results?\n"
-        "- Are cell fill-ins animated in the correct order?\n"
-        "- Are dependencies between cells shown (arrows or highlights)?\n"
-    ),
-    "cache": (
-        "\nDOMAIN-SPECIFIC CHECKS for CACHE visualization:\n"
-        "- Are cache slots/queue structures visible?\n"
-        "- Are hit/miss events clearly indicated?\n"
-        "- Is the eviction process animated?\n"
-    ),
-    "transformer": (
-        "\nDOMAIN-SPECIFIC CHECKS for TRANSFORMER visualization:\n"
-        "- Are encoder/decoder blocks distinguishable?\n"
-        "- Is the attention mechanism visually represented (weights, arrows)?\n"
-        "- Is the data flow through layers shown sequentially?\n"
-    ),
+# ── Domain-specific QA config ─────────────────────────────────────────────────
+
+# Base criteria weights (sum to 1.0)
+DEFAULT_WEIGHTS = {
+    "correctness": 0.35,
+    "clarity": 0.25,
+    "completeness": 0.25,
+    "readability": 0.15,
 }
+
+# Domain-specific required checks: if these fail, score is penalized
+# Each check has: key (for JSON), description (for prompt), penalty (subtracted from final score)
+DOMAIN_QA_CONFIG = {
+    "sorting": {
+        "threshold": 5.0,
+        "weights": {"correctness": 0.30, "clarity": 0.20, "completeness": 0.35, "readability": 0.15},
+        "required_checks": [
+            {"key": "elements_visible", "desc": "Array elements are visible as distinct cells with numeric values", "penalty": 2.0},
+            {"key": "comparison_shown", "desc": "Comparison or swap operations are animated step by step", "penalty": 2.5},
+            {"key": "sorted_progression", "desc": "Progression from unsorted to sorted state is visible", "penalty": 1.5},
+            {"key": "state_highlighting", "desc": "Active/compared/swapped elements are highlighted with color", "penalty": 1.0},
+        ],
+    },
+    "graph_traversal": {
+        "threshold": 5.0,
+        "weights": {"correctness": 0.35, "clarity": 0.25, "completeness": 0.25, "readability": 0.15},
+        "required_checks": [
+            {"key": "nodes_visible", "desc": "Nodes are visible as distinct shapes with labels", "penalty": 2.5},
+            {"key": "edges_drawn", "desc": "Edges/connections between nodes are drawn", "penalty": 2.0},
+            {"key": "traversal_order", "desc": "Traversal order is visible (visited nodes change color)", "penalty": 2.0},
+            {"key": "frontier_shown", "desc": "Queue/stack/frontier state is shown if applicable", "penalty": 1.0},
+        ],
+    },
+    "cnn_param": {
+        "threshold": 5.0,
+        "weights": {"correctness": 0.30, "clarity": 0.30, "completeness": 0.25, "readability": 0.15},
+        "required_checks": [
+            {"key": "layers_visible", "desc": "Layers (input, convolution, output) are distinguishable", "penalty": 2.5},
+            {"key": "kernel_animated", "desc": "Kernel/filter operations are animated (sliding window)", "penalty": 2.0},
+            {"key": "dimensions_shown", "desc": "Dimensions/shapes are annotated on layers", "penalty": 1.0},
+            {"key": "data_flow_clear", "desc": "Data flow direction is clear (left to right or similar)", "penalty": 1.5},
+        ],
+    },
+    "dynamic_programming": {
+        "threshold": 5.0,
+        "weights": {"correctness": 0.35, "clarity": 0.20, "completeness": 0.30, "readability": 0.15},
+        "required_checks": [
+            {"key": "table_visible", "desc": "Table/grid structure is visible showing subproblem results", "penalty": 2.5},
+            {"key": "fill_animated", "desc": "Cell fill-ins are animated in correct order", "penalty": 2.0},
+            {"key": "dependencies_shown", "desc": "Dependencies between cells are shown (arrows or highlights)", "penalty": 1.5},
+        ],
+    },
+    "cache": {
+        "threshold": 5.0,
+        "weights": DEFAULT_WEIGHTS,
+        "required_checks": [
+            {"key": "slots_visible", "desc": "Cache slots/queue structures are visible", "penalty": 2.5},
+            {"key": "hit_miss_indicated", "desc": "Hit/miss events are clearly indicated", "penalty": 2.0},
+            {"key": "eviction_animated", "desc": "Eviction process is animated", "penalty": 1.5},
+        ],
+    },
+    "transformer": {
+        "threshold": 5.0,
+        "weights": {"correctness": 0.30, "clarity": 0.30, "completeness": 0.25, "readability": 0.15},
+        "required_checks": [
+            {"key": "blocks_visible", "desc": "Encoder/decoder blocks are distinguishable", "penalty": 2.0},
+            {"key": "attention_shown", "desc": "Attention mechanism is visually represented", "penalty": 2.5},
+            {"key": "data_flow_sequential", "desc": "Data flow through layers is shown sequentially", "penalty": 1.5},
+        ],
+    },
+    "hash_table": {
+        "threshold": 5.0,
+        "weights": DEFAULT_WEIGHTS,
+        "required_checks": [
+            {"key": "buckets_visible", "desc": "Hash table buckets/slots are visible", "penalty": 2.0},
+            {"key": "hash_operation_shown", "desc": "Hash function computation is shown", "penalty": 1.5},
+            {"key": "collision_handled", "desc": "Collision handling (chaining/probing) is animated", "penalty": 2.0},
+        ],
+    },
+}
+
+
+def _build_domain_checks_prompt(domain: str) -> str:
+    """Build the domain-specific checks section for the Vision QA prompt."""
+    config = DOMAIN_QA_CONFIG.get(domain)
+    if not config:
+        return ""
+
+    checks = config["required_checks"]
+    lines = [f"\nDOMAIN-SPECIFIC REQUIRED CHECKS for {domain.upper()} visualization:"]
+    lines.append("For each check, respond with true/false in the 'domain_checks' field:")
+    for chk in checks:
+        lines.append(f'  - "{chk["key"]}": {chk["desc"]}')
+    return "\n".join(lines)
+
+
+def compute_domain_adjusted_score(
+    base_scores: dict[str, float],
+    domain_checks: dict[str, bool],
+    domain: str | None,
+) -> tuple[float, list[str]]:
+    """Compute a weighted score with domain-specific penalties.
+
+    Args:
+        base_scores: {"correctness": 1-10, "clarity": 1-10, "completeness": 1-10, "readability": 1-10}
+        domain_checks: {"check_key": True/False, ...}
+        domain: The domain string or None
+
+    Returns:
+        (final_score, penalty_reasons): final score 0-10, list of penalty reasons
+    """
+    config = DOMAIN_QA_CONFIG.get(domain) if domain else None
+    weights = (config or {}).get("weights", DEFAULT_WEIGHTS)
+
+    # Weighted base score
+    weighted = 0.0
+    total_weight = 0.0
+    for criterion, weight in weights.items():
+        val = base_scores.get(criterion, 5.0)
+        # Clamp to 1-10
+        val = max(1.0, min(10.0, float(val)))
+        weighted += val * weight
+        total_weight += weight
+
+    base_score = weighted / total_weight if total_weight > 0 else 5.0
+
+    # Apply domain-specific penalties
+    penalty_reasons: list[str] = []
+    total_penalty = 0.0
+
+    reported_checks = domain_checks or {}
+    if config:
+        for chk in config["required_checks"]:
+            key = chk["key"]
+            if key not in reported_checks:
+                total_penalty += chk["penalty"]
+                penalty_reasons.append(f"{chk['desc']} — MISSING (penalty: -{chk['penalty']})")
+                continue
+            passed = reported_checks[key]
+            if not passed:
+                total_penalty += chk["penalty"]
+                penalty_reasons.append(f"{chk['desc']} — FAILED (penalty: -{chk['penalty']})")
+
+    final_score = max(0.0, base_score - total_penalty)
+    return round(final_score, 1), penalty_reasons
 
 
 def extract_frames(video_path: str, num_frames: int = 4) -> list[str]:
@@ -354,22 +458,35 @@ def vision_qa(
     threshold: float = 5.0,
     domain: str | None = None,
 ) -> dict:
-    """Run vision QA on rendered video.
+    """Run vision QA on rendered video with domain-aware weighted scoring.
+
+    When a domain is provided and has a config in DOMAIN_QA_CONFIG, the scoring
+    uses per-criterion weights and applies penalties for failed required checks.
+    This reduces false positives (pretty but educationally wrong) and false
+    negatives (visually simple but correct).
 
     Returns:
         {
-            "score": float (1-10),
-            "passed": bool,
+            "score": float (-1 to 10; -1 means vision QA was unavailable
+                      because the OpenAI client was not initialized or an error occurred),
+            "passed": bool (True when score >= threshold, or when vision QA is
+                       unavailable and the check is skipped),
             "issues": list[str],
             "summary": str,
+            "base_scores": dict (per-criterion scores, if available),
+            "domain_checks": dict (domain check results, if available),
+            "penalties": list[str] (penalty reasons, if any),
         }
     """
     if not client:
         return {
             "score": -1,
-            "passed": True,  # Don't block on QA failure
+            "passed": True,
             "issues": ["OpenAI client not initialized"],
             "summary": "Vision QA unavailable",
+            "base_scores": {},
+            "domain_checks": {},
+            "penalties": [],
         }
 
     frames = extract_frames(video_path, num_frames)
@@ -380,31 +497,51 @@ def vision_qa(
             "passed": False,
             "issues": ["Could not extract frames from video"],
             "summary": "Frame extraction failed",
+            "base_scores": {},
+            "domain_checks": {},
+            "penalties": [],
         }
 
-    # Build GPT-4o message with frames
-    domain_criteria = DOMAIN_QA_CRITERIA.get(domain, "") if domain else ""
+    # Build domain-specific prompt section
+    domain_checks_prompt = _build_domain_checks_prompt(domain) if domain else ""
+    has_domain_checks = bool(domain and domain in DOMAIN_QA_CONFIG)
+
+    # Build structured JSON schema for response
+    if has_domain_checks:
+        check_keys = [c["key"] for c in DOMAIN_QA_CONFIG[domain]["required_checks"]]
+        domain_checks_schema = ", ".join(f'"{k}": <true/false>' for k in check_keys)
+        response_schema = (
+            '{"base_scores": {"correctness": <1-10>, "clarity": <1-10>, '
+            '"completeness": <1-10>, "readability": <1-10>}, '
+            f'"domain_checks": {{{domain_checks_schema}}}, '
+            '"issues": [<string list>], "summary": "<1 sentence>"}'
+        )
+    else:
+        response_schema = (
+            '{"base_scores": {"correctness": <1-10>, "clarity": <1-10>, '
+            '"completeness": <1-10>, "readability": <1-10>}, '
+            '"issues": [<string list>], "summary": "<1 sentence>"}'
+        )
+
     content: list[dict] = [
         {
             "type": "text",
             "text": (
                 f"You are a QA reviewer for algorithm visualization videos.\n"
                 f"The video is supposed to visualize: \"{algorithm_description}\"\n\n"
-                f"Below are {len(frames)} evenly-spaced frames from the rendered video.\n"
-                f"Evaluate the quality on these criteria:\n"
+                f"Below are {len(frames)} evenly-spaced frames from the rendered video.\n\n"
+                f"Score each criterion from 1 to 10:\n"
                 f"1. CORRECTNESS: Does it accurately represent the described algorithm/logic?\n"
-                f"2. VISUAL CLARITY: Are elements visible, not overlapping, properly labeled?\n"
+                f"2. CLARITY: Are elements visible, not overlapping, properly labeled?\n"
                 f"3. COMPLETENESS: Does it show the key steps, not just a static image?\n"
                 f"4. READABILITY: Is text readable? Are colors distinguishable?\n"
-                f"{domain_criteria}\n"
-                f"Respond with ONLY JSON:\n"
-                f'{{"score": <1-10>, "issues": [<string list of problems found>], '
-                f'"summary": "<1 sentence overall assessment>"}}'
+                f"{domain_checks_prompt}\n\n"
+                f"Respond with ONLY JSON:\n{response_schema}"
             ),
         }
     ]
 
-    for i, frame_b64 in enumerate(frames):
+    for frame_b64 in frames:
         content.append({
             "type": "image_url",
             "image_url": {
@@ -418,28 +555,65 @@ def vision_qa(
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
             messages=[{"role": "user", "content": content}],
-            max_tokens=300,
+            max_tokens=500,
             timeout=30,
         )
         result = json.loads(resp.choices[0].message.content)
-        score = float(result.get("score", 0))
+
+        # Extract structured scores
+        base_scores = result.get("base_scores", {})
+        domain_checks = result.get("domain_checks", {})
         issues = result.get("issues", [])
         summary = result.get("summary", "")
 
-        logger.info("vision_qa score=%.1f issues=%d summary=%s", score, len(issues), summary)
+        # Backward compat: if LLM returns flat "score" instead of base_scores
+        if not base_scores and "score" in result:
+            flat_score = float(result["score"])
+            base_scores = {
+                "correctness": flat_score,
+                "clarity": flat_score,
+                "completeness": flat_score,
+                "readability": flat_score,
+            }
+
+        # Compute domain-adjusted score
+        final_score, penalties = compute_domain_adjusted_score(
+            base_scores, domain_checks, domain
+        )
+
+        # Use domain-specific threshold if available
+        config = DOMAIN_QA_CONFIG.get(domain) if domain else None
+        effective_threshold = (config or {}).get("threshold", threshold)
+
+        if penalties:
+            if not isinstance(issues, list):
+                issues = [issues] if issues else []
+            issues = issues + penalties
+
+        logger.info(
+            "vision_qa domain=%s score=%.1f (base=%s) penalties=%d passed=%s summary=%s",
+            domain, final_score, base_scores, len(penalties),
+            final_score >= effective_threshold, summary,
+        )
 
         return {
-            "score": score,
-            "passed": score >= threshold,
+            "score": final_score,
+            "passed": final_score >= effective_threshold,
             "issues": issues,
             "summary": summary,
+            "base_scores": base_scores,
+            "domain_checks": domain_checks,
+            "penalties": penalties,
         }
 
     except Exception as e:
         logger.warning("vision_qa failed: %s — passing by default", e)
         return {
             "score": -1,
-            "passed": True,  # Don't block on QA failure
+            "passed": True,
             "issues": [f"QA evaluation failed: {e}"],
             "summary": "QA skipped due to error",
+            "base_scores": {},
+            "domain_checks": {},
+            "penalties": [],
         }
