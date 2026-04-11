@@ -7,7 +7,11 @@ import re
 from pathlib import Path
 import logging
 
-from studio.ai.qa import validate_pseudocode_ir, validate_anim_ir, vision_qa
+from studio.ai.qa import (
+    validate_pseudocode_ir, validate_anim_ir,
+    validate_pseudocode_ir_deep, validate_anim_ir_deep,
+    vision_qa,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -241,11 +245,15 @@ def render_video_from_instructions(instructions: str) -> str:
             logger.info("[Pseudocode IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_pseudo)
 
             ir_issues = validate_pseudocode_ir(pseudo_ir)
-            if not ir_issues:
+            deep_issues = validate_pseudocode_ir_deep(pseudo_ir)
+            all_ir_issues = ir_issues + deep_issues
+            if not all_ir_issues:
                 logger.info("[Pseudocode IR] passed validation — entities=%d operations=%d",
                             len(pseudo_ir.get("entities", [])), len(pseudo_ir.get("operations", [])))
                 break
-            logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
+            if deep_issues:
+                logger.warning("[Pseudocode IR] deep validation issues: %s", deep_issues[:3])
+            logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
             if ir_try == MAX_IR_RETRIES:
                 logger.warning("[Pseudocode IR] proceeding with last attempt despite issues")
 
@@ -258,11 +266,15 @@ def render_video_from_instructions(instructions: str) -> str:
             logger.info("[Anim IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_anim)
 
             ir_issues = validate_anim_ir(anim_ir)
-            if not ir_issues:
+            deep_issues = validate_anim_ir_deep(anim_ir)
+            all_ir_issues = ir_issues + deep_issues
+            if not all_ir_issues:
                 logger.info("[Anim IR] passed validation — layout=%d actions=%d",
                             len(anim_ir.get("layout", [])), len(anim_ir.get("actions", [])))
                 break
-            logger.warning("[Anim IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
+            if deep_issues:
+                logger.warning("[Anim IR] deep validation issues: %s", deep_issues[:3])
+            logger.warning("[Anim IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
             if ir_try == MAX_IR_RETRIES:
                 logger.warning("[Anim IR] proceeding with last attempt despite issues")
 
