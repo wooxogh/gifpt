@@ -1,9 +1,10 @@
 # studio/ai/qa.py
 """QA module for Manim animation pipeline.
 
-Two layers:
+Three layers:
 1. IR validation  — cheap structural checks on pseudocode/anim IR before codegen.
-2. Vision QA      — after render, extract frames and ask GPT-4o to evaluate quality.
+2. Deep IR validation — Pydantic models + cross-reference checks (entity↔operation consistency).
+3. Vision QA      — after render, extract frames and ask GPT-4o to evaluate quality.
 """
 
 import base64
@@ -15,6 +16,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -107,6 +109,153 @@ def validate_anim_ir(ir: dict) -> list[str]:
                 issues.append(f"actions[{i}] missing 'animation'")
 
     return issues
+
+
+# ── 1b. Deep IR Validation (Pydantic + cross-reference) ─────────────────────
+
+# Manim scene coordinate bounds
+SCENE_X_MIN, SCENE_X_MAX = -7.1, 7.1
+SCENE_Y_MIN, SCENE_Y_MAX = -4.0, 4.0
+
+
+class PseudocodeEntity(BaseModel):
+    id: str = Field(min_length=1)
+    type: str = Field(min_length=1)
+    attributes: dict = Field(default_factory=dict)
+
+
+class PseudocodeOperation(BaseModel):
+    step: int | None = None
+    subject: str = Field(min_length=1)
+    action: str = Field(min_length=1)
+    target: str | None = None
+    description: str | None = None
+
+
+class PseudocodeIR(BaseModel):
+    metadata: dict = Field(default_factory=dict)
+    entities: list[PseudocodeEntity] = Field(min_length=1)
+    operations: list[PseudocodeOperation] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def check_entity_references(self):
+        """Verify every operation.subject references a defined entity ID."""
+        entity_ids = {e.id for e in self.entities}
+        for i, op in enumerate(self.operations):
+            if op.subject not in entity_ids:
+                raise ValueError(
+                    f"operations[{i}].subject='{op.subject}' not in entity IDs: {entity_ids}"
+                )
+            if op.target and op.target not in entity_ids:
+                raise ValueError(
+                    f"operations[{i}].target='{op.target}' not in entity IDs: {entity_ids}"
+                )
+        return self
+
+
+class AnimLayoutItem(BaseModel):
+    id: str = Field(min_length=1)
+    shape: str = Field(min_length=1)
+    position: list[float] = Field(min_length=2, max_length=3)
+    color: str | None = None
+    label: str | None = None
+    data: list | None = None
+    dimensions: str | None = None
+
+    @field_validator("position")
+    @classmethod
+    def position_in_bounds(cls, v: list[float]) -> list[float]:
+        x, y = v[0], v[1]
+        if not (SCENE_X_MIN <= x <= SCENE_X_MAX):
+            raise ValueError(f"x={x} out of scene bounds [{SCENE_X_MIN}, {SCENE_X_MAX}]")
+        if not (SCENE_Y_MIN <= y <= SCENE_Y_MAX):
+            raise ValueError(f"y={y} out of scene bounds [{SCENE_Y_MIN}, {SCENE_Y_MAX}]")
+        return v
+
+
+class AnimAction(BaseModel):
+    step: int | None = None
+    target: str | None = None
+    animation: str = Field(min_length=1)
+    description: str | None = None
+
+
+class AnimIR(BaseModel):
+    metadata: dict = Field(default_factory=dict)
+    layout: list[AnimLayoutItem] = Field(min_length=1)
+    actions: list[AnimAction] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def check_action_targets(self):
+        """Verify action targets reference defined layout IDs."""
+        layout_ids = {item.id for item in self.layout}
+        for i, act in enumerate(self.actions):
+            if act.target and act.target not in layout_ids:
+                raise ValueError(
+                    f"actions[{i}].target='{act.target}' not in layout IDs: {layout_ids}"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def check_no_duplicate_layout_ids(self):
+        ids = [item.id for item in self.layout]
+        seen = set()
+        for lid in ids:
+            if lid in seen:
+                raise ValueError(f"Duplicate layout id: '{lid}'")
+            seen.add(lid)
+        return self
+
+
+def validate_pseudocode_ir_deep(ir: dict) -> list[str]:
+    """Pydantic-based deep validation of pseudocode IR.
+
+    Returns list of issues (empty = pass). Catches:
+    - Missing/invalid fields with type enforcement
+    - Entity ID ↔ operation subject/target reference integrity
+    """
+    try:
+        PseudocodeIR.model_validate(ir)
+        return []
+    except (ValidationError, TypeError, ValueError) as e:
+        # Flatten Pydantic validation errors into human-readable strings
+        issues = []
+        if hasattr(e, "errors"):
+            for err in e.errors():
+                loc = " → ".join(str(l) for l in err["loc"])
+                issues.append(f"{loc}: {err['msg']}")
+        else:
+            issues.append(str(e))
+        return issues
+    except Exception as e:
+        logger.exception("Unexpected error in validate_pseudocode_ir_deep")
+        return [f"Internal validator error: {type(e).__name__}: {e}"]
+
+
+def validate_anim_ir_deep(ir: dict) -> list[str]:
+    """Pydantic-based deep validation of animation IR.
+
+    Returns list of issues (empty = pass). Catches:
+    - Missing/invalid fields with type enforcement
+    - Position coordinates outside Manim scene bounds
+    - Action target ↔ layout ID reference integrity
+    - Duplicate layout IDs
+    """
+    try:
+        AnimIR.model_validate(ir)
+        return []
+    except (ValidationError, TypeError, ValueError) as e:
+        issues = []
+        if hasattr(e, "errors"):
+            for err in e.errors():
+                loc = " → ".join(str(l) for l in err["loc"])
+                issues.append(f"{loc}: {err['msg']}")
+        else:
+            issues.append(str(e))
+        return issues
+    except Exception as e:
+        logger.exception("Unexpected error in validate_anim_ir_deep")
+        return [f"Internal validator error: {type(e).__name__}: {e}"]
 
 
 # ── 2. Vision QA ──────────────────────────────────────────────────────────────
