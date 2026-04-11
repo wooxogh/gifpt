@@ -1,11 +1,12 @@
 package com.gifpt.analysis.dto;
 
 import java.time.Instant;
+import org.springframework.lang.Nullable;
 
 public record GalleryItemResponse(
         Long id,
         String algorithm,
-        String algorithmSlug,
-        String videoUrl,
+        @Nullable String algorithmSlug,
+        @Nullable String videoUrl,
         Instant createdAt
 ) {}

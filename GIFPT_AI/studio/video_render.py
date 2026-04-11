@@ -1,4 +1,5 @@
 # video_render.py
+import ast
 import os
 import time
 import tempfile
@@ -7,7 +8,11 @@ import re
 from pathlib import Path
 import logging
 
-from studio.ai.qa import validate_pseudocode_ir, validate_anim_ir, vision_qa
+from studio.ai.qa import (
+    validate_pseudocode_ir, validate_anim_ir,
+    validate_pseudocode_ir_deep, validate_anim_ir_deep,
+    vision_qa,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +21,11 @@ RESULT_DIR = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
 SEP = "=" * 80
 SUBSEP = "-" * 80
 
-UNKNOWN_HELPERS = [
+# LLM-hallucinated helper functions — shared between basic and AST validators
+UNKNOWN_HELPERS = frozenset({
     'AddPointToGraph', 'PlotPoint', 'CreateGraph', 'AnimateCurvePoint',
-    'DrawArrowBetween', 'ShowValueOnPlot'
-]
+    'DrawArrowBetween', 'ShowValueOnPlot',
+})
 
 def _sanitize_text(text: str) -> str:
     """main.py의 sanitize_text와 같은 역할 (간단한 공백/줄바꿈 정리)."""
@@ -52,6 +58,98 @@ def validate_manim_code_basic(code: str):
     # 매우 단순한 괄호 체크
     if code.count('(') < code.count(')') or code.count('[') < code.count(']'):
         issues.append({"error_type": "syntax", "message": "possible unmatched bracket"})
+
+    return issues
+
+
+# ── AST-based deep validation ────────────────────────────────────────────────
+
+# Names that cause Manim CE 0.19.0 render failures
+FORBIDDEN_NAMES = frozenset({
+    # LaTeX-dependent (Manim CE Text-only constraint)
+    "Matrix", "IntegerTable", "MathTex", "Tex", "MobjectTable",
+    # Unavailable line/arrow variants
+    "DashedLine", "DashedArrow", "CurvedArrow", "ArcBetweenPoints", "TracedPath",
+    # LLM-hallucinated classes
+    "Highlight", "Focus", "Emphasize",
+}) | UNKNOWN_HELPERS  # Reuse shared set — keeps basic & AST validators in sync
+
+# Attribute calls that crash at runtime
+FORBIDDEN_ATTRS = frozenset({
+    "deepcopy",   # Mobject.deepcopy() — use .copy()
+    "set_text",   # Text.set_text() — create new Text + Transform
+})
+
+# Camera access pattern — Scene has no .frame attribute
+FORBIDDEN_CAMERA_ATTRS = frozenset({"frame"})
+
+
+def validate_manim_code_ast(code: str) -> list[dict]:
+    """Deep AST-level validation of LLM-generated Manim code.
+
+    Catches issues that regex-based validate_manim_code_basic misses:
+    - Forbidden class instantiation (Matrix, DashedLine, etc.)
+    - Forbidden method calls (.deepcopy(), .set_text())
+    - self.camera.frame access
+    - Syntax errors that would crash the subprocess
+
+    Returns a list of issue dicts (empty = code is clean).
+    """
+    issues: list[dict] = []
+
+    # Step 1: Syntax check — can Python parse it at all?
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        issues.append({
+            "error_type": "syntax",
+            "message": f"SyntaxError at line {e.lineno}: {e.msg}",
+            "line": e.lineno,
+        })
+        return issues  # can't walk a broken AST
+
+    for node in ast.walk(tree):
+        # Step 2: Forbidden class/function usage — e.g. Matrix(...), DashedLine(...)
+        if isinstance(node, ast.Call):
+            func = node.func
+            # Direct name calls: Matrix(), DashedLine(), etc.
+            if isinstance(func, ast.Name) and func.id in FORBIDDEN_NAMES:
+                issues.append({
+                    "error_type": "forbidden_api",
+                    "message": f"Forbidden API '{func.id}' at line {func.lineno} — not available in Manim CE 0.19.0",
+                    "line": func.lineno,
+                })
+            # Qualified calls: manim.Matrix(), mn.MathTex(), etc.
+            elif isinstance(func, ast.Attribute) and func.attr in FORBIDDEN_NAMES:
+                issues.append({
+                    "error_type": "forbidden_api",
+                    "message": f"Forbidden API '{func.attr}' at line {func.lineno} — not available in Manim CE 0.19.0",
+                    "line": func.lineno,
+                })
+
+            # Step 3: Forbidden method calls — obj.deepcopy(), text.set_text()
+            # Only flag when actually called (ast.Call), not bare attribute access.
+            if isinstance(func, ast.Attribute) and func.attr in FORBIDDEN_ATTRS:
+                replacement = ".copy()" if func.attr == "deepcopy" else "new Text + Transform"
+                issues.append({
+                    "error_type": "forbidden_method",
+                    "message": f"'.{func.attr}()' at line {func.lineno} — use {replacement} instead",
+                    "line": func.lineno,
+                })
+
+        # Step 4: self.camera.frame access
+        if isinstance(node, ast.Attribute):
+            if node.attr in FORBIDDEN_CAMERA_ATTRS:
+                # Check if it's self.camera.frame
+                if (isinstance(node.value, ast.Attribute)
+                        and node.value.attr == "camera"
+                        and isinstance(node.value.value, ast.Name)
+                        and node.value.value.id == "self"):
+                    issues.append({
+                        "error_type": "forbidden_api",
+                        "message": f"'self.camera.frame' at line {node.lineno} — Scene camera has no frame attribute",
+                        "line": node.lineno,
+                    })
 
     return issues
 
@@ -241,11 +339,15 @@ def render_video_from_instructions(instructions: str) -> str:
             logger.info("[Pseudocode IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_pseudo)
 
             ir_issues = validate_pseudocode_ir(pseudo_ir)
-            if not ir_issues:
+            deep_issues = validate_pseudocode_ir_deep(pseudo_ir)
+            all_ir_issues = ir_issues + deep_issues
+            if not all_ir_issues:
                 logger.info("[Pseudocode IR] passed validation — entities=%d operations=%d",
                             len(pseudo_ir.get("entities", [])), len(pseudo_ir.get("operations", [])))
                 break
-            logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
+            if deep_issues:
+                logger.warning("[Pseudocode IR] deep validation issues: %s", deep_issues[:3])
+            logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
             if ir_try == MAX_IR_RETRIES:
                 logger.warning("[Pseudocode IR] proceeding with last attempt despite issues")
 
@@ -258,11 +360,15 @@ def render_video_from_instructions(instructions: str) -> str:
             logger.info("[Anim IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_anim)
 
             ir_issues = validate_anim_ir(anim_ir)
-            if not ir_issues:
+            deep_issues = validate_anim_ir_deep(anim_ir)
+            all_ir_issues = ir_issues + deep_issues
+            if not all_ir_issues:
                 logger.info("[Anim IR] passed validation — layout=%d actions=%d",
                             len(anim_ir.get("layout", [])), len(anim_ir.get("actions", [])))
                 break
-            logger.warning("[Anim IR] validation failed (%d issues): %s", len(ir_issues), ir_issues[:3])
+            if deep_issues:
+                logger.warning("[Anim IR] deep validation issues: %s", deep_issues[:3])
+            logger.warning("[Anim IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
             if ir_try == MAX_IR_RETRIES:
                 logger.warning("[Anim IR] proceeding with last attempt despite issues")
 
@@ -274,6 +380,7 @@ def render_video_from_instructions(instructions: str) -> str:
         max_codegen_attempts = 3
         output_dir = RESULT_DIR / "videos"
         output_name = f"video_{int(time.time())}.mp4"
+        attempt_history: list[dict] = []
 
         for attempt in range(1, max_codegen_attempts + 1):
             start = time.perf_counter()
@@ -286,16 +393,25 @@ def render_video_from_instructions(instructions: str) -> str:
                 else:
                     code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
             elif last_error_type is not None:
-                code_try = call_llm_codegen_fix(manim_code, last_error_type, last_stderr)
+                code_try = call_llm_codegen_fix(
+                    manim_code, last_error_type, last_stderr,
+                    anim_ir=anim_ir,
+                    attempt_history=attempt_history,
+                )
             else:
                 code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
 
             issues = validate_manim_code_basic(code_try)
+            ast_issues = validate_manim_code_ast(code_try)
+            all_issues = issues + ast_issues
             dur = time.perf_counter() - start
 
-            if issues:
-                logger.warning("[CodeGen] attempt %d/%d static issues (%d) %.2fs",
-                               attempt, max_codegen_attempts, len(issues), dur)
+            if all_issues:
+                logger.warning("[CodeGen] attempt %d/%d static issues (%d) ast issues (%d) %.2fs",
+                               attempt, max_codegen_attempts, len(issues), len(ast_issues), dur)
+                if ast_issues:
+                    logger.warning("[CodeGen] AST issues: %s",
+                                   [i["message"] for i in ast_issues[:5]])
                 manim_code = code_try
                 if attempt < max_codegen_attempts:
                     continue
@@ -320,6 +436,11 @@ def render_video_from_instructions(instructions: str) -> str:
             except ManimRenderError as e:
                 last_error_type = e.error_type
                 last_stderr = e.stderr_snippet
+                attempt_history.append({
+                    "attempt": attempt,
+                    "error_type": e.error_type,
+                    "stderr": e.stderr_snippet[-500:],
+                })
                 logger.warning("[Render] attempt %d/%d failed: %s — feeding error back to LLM",
                                attempt, max_codegen_attempts, e.error_type)
                 if attempt == max_codegen_attempts:

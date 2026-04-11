@@ -19,6 +19,9 @@ sys.modules.setdefault("dotenv", MagicMock())
 
 from studio.ai.llm_codegen import (  # noqa: E402
     _build_few_shot_system_prompt,
+    _build_intent_context,
+    _build_attempt_history_context,
+    call_llm_codegen_fix,
     call_llm_codegen_with_qa_feedback,
     SYSTEM_PROMPT,
     PEDAGOGICAL_RULES_FULL,
@@ -131,6 +134,140 @@ class TestBuildFewShotSystemPrompt:
     def test_example_with_missing_keys(self):
         result = _build_few_shot_system_prompt([{}])
         assert "example_1" in result
+
+
+class TestBuildIntentContext:
+    """_build_intent_context helper for self-healing fix prompts."""
+
+    def test_none_inputs(self):
+        assert _build_intent_context(None, None) == ""
+
+    def test_algorithm_name_only(self):
+        result = _build_intent_context("bubble sort", None)
+        assert "Algorithm: bubble sort" in result
+
+    def test_anim_ir_with_metadata(self):
+        ir = {
+            "metadata": {"title": "Merge Sort", "domain": "sorting"},
+            "layout": [
+                {"shape": "array", "id": "arr"},
+                {"shape": "rectangle", "id": "ptr"},
+            ],
+            "actions": [
+                {"animation": "fade_in"},
+                {"animation": "highlight"},
+                {"animation": "swap"},
+            ],
+        }
+        result = _build_intent_context(None, ir)
+        assert "Topic: Merge Sort" in result
+        assert "Layout: 2 elements" in result
+        assert "Actions: 3 steps" in result
+
+    def test_both_params(self):
+        result = _build_intent_context("dijkstra", {"metadata": {"domain": "graph"}})
+        assert "Algorithm: dijkstra" in result
+        assert "Topic: graph" in result
+
+    def test_empty_ir(self):
+        result = _build_intent_context(None, {})
+        assert result == ""
+
+    def test_layout_as_string_ignored(self):
+        """Non-list layout should be silently ignored, not produce 'Layout: 10 elements'."""
+        result = _build_intent_context(None, {"layout": "not a list"})
+        assert "Layout" not in result
+
+    def test_actions_as_dict_ignored(self):
+        result = _build_intent_context(None, {"actions": {"step": 1}})
+        assert "Actions" not in result
+
+    def test_layout_with_non_dict_items(self):
+        """Layout items that aren't dicts should not appear in shape preview."""
+        ir = {"layout": [{"shape": "array"}, "bad_item", 42]}
+        result = _build_intent_context(None, ir)
+        assert "Layout: 3 elements" in result
+        assert "array" in result
+
+
+class TestBuildAttemptHistoryContext:
+    """_build_attempt_history_context helper for self-healing fix prompts."""
+
+    def test_none_history(self):
+        assert _build_attempt_history_context(None) == ""
+
+    def test_empty_history(self):
+        assert _build_attempt_history_context([]) == ""
+
+    def test_single_attempt(self):
+        history = [{"attempt": 1, "error_type": "runtime_name", "stderr": "NameError: name 'x' is not defined"}]
+        result = _build_attempt_history_context(history)
+        assert "Attempt 1" in result
+        assert "runtime_name" in result
+        assert "NameError" in result
+
+    def test_caps_at_three_entries(self):
+        history = [{"attempt": i, "error_type": f"err_{i}", "stderr": f"Error {i}"} for i in range(5)]
+        result = _build_attempt_history_context(history)
+        # Should only include the last 3
+        assert "Attempt 2" in result
+        assert "Attempt 4" in result
+        assert "Attempt 0" not in result
+
+
+class TestCodegenFixWithContext:
+    """call_llm_codegen_fix with enhanced context parameters."""
+
+    def test_fix_includes_algorithm_name(self):
+        mock = _setup_mock_response()
+        call_llm_codegen_fix(
+            "from manim import *\nbroken code",
+            "runtime_name",
+            "NameError: name 'x' is not defined",
+            algorithm_name="quicksort",
+        )
+        call_args = mock.chat.completions.create.call_args
+        user_msg = call_args.kwargs["messages"][-1]["content"]
+        assert "Algorithm: quicksort" in user_msg
+        assert "ORIGINAL INTENT" in user_msg
+
+    def test_fix_includes_anim_ir(self):
+        mock = _setup_mock_response()
+        ir = {"metadata": {"title": "BFS"}, "layout": [{"shape": "graph", "id": "g"}], "actions": [{"animation": "highlight"}]}
+        call_llm_codegen_fix(
+            "from manim import *\nbroken",
+            "runtime_attr",
+            "AttributeError: no attr",
+            anim_ir=ir,
+        )
+        call_args = mock.chat.completions.create.call_args
+        user_msg = call_args.kwargs["messages"][-1]["content"]
+        assert "Topic: BFS" in user_msg
+        assert "Layout: 1 elements" in user_msg
+
+    def test_fix_includes_attempt_history(self):
+        mock = _setup_mock_response()
+        history = [
+            {"attempt": 1, "error_type": "runtime_name", "stderr": "NameError: name 'highlight_rect'"},
+            {"attempt": 2, "error_type": "runtime_attr", "stderr": "AttributeError: 'VGroup' object"},
+        ]
+        call_llm_codegen_fix(
+            "from manim import *\ncode",
+            "runtime_type",
+            "TypeError: unsupported",
+            attempt_history=history,
+        )
+        call_args = mock.chat.completions.create.call_args
+        user_msg = call_args.kwargs["messages"][-1]["content"]
+        assert "Previous failed attempts" in user_msg
+        assert "Attempt 1" in user_msg
+        assert "Attempt 2" in user_msg
+
+    def test_fix_backward_compatible(self):
+        """Calling without new params still works (backward compat)."""
+        _setup_mock_response()
+        result = call_llm_codegen_fix("from manim import *\ncode", "runtime", "some error")
+        assert "AlgorithmScene" in result
 
 
 class TestSharedConstants:

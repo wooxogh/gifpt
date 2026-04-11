@@ -2,6 +2,7 @@ package com.gifpt.analysis.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.lang.Nullable;
 
 import java.time.Instant;
 
@@ -24,14 +25,19 @@ public class AnalysisJob {
   @Column(length = 4000)
   private String prompt;      // 사용자가 입력한 프롬프트
 
+  @Nullable
   @Column(length = 8000)
   private String summary;     // Django worker가 반환한 핵심 요약
 
+  @Nullable
   private String resultUrl;   // 생성된 영상 URL
 
+  @Nullable
   private String errorMessage; // 에러 메시지
 
+  @Nullable
   private Instant startedAt;   // 작업 시작 시간
+  @Nullable
   private Instant finishedAt;  // 작업 완료 시간
   private Instant createdAt;
   private Instant updatedAt;
