@@ -28,8 +28,11 @@ function pickGradient(id: number) {
   return GRADIENT_VARS[id % GRADIENT_VARS.length]
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
+function formatDate(iso: string | null | undefined) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime()) || d.getTime() === 0) return ''
+  return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',

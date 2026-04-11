@@ -41,7 +41,7 @@ def main() -> int:
                         help="Render seeds but skip vision QA")
     args = parser.parse_args()
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Run sub-audits

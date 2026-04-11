@@ -1,6 +1,5 @@
 package com.gifpt.analysis.domain;
 
-import com.gifpt.file.domain.UploadFile;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,9 +15,6 @@ public class AnalysisJob {
 
   private Long userId;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  private UploadFile uploadedFile;
-
   @Enumerated(EnumType.STRING)
   private AnalysisStatus status;
 
@@ -33,13 +29,22 @@ public class AnalysisJob {
 
   private String resultUrl;   // 생성된 영상 URL
 
-  @Lob
-  private String pdfText;     // PDF 전체 텍스트 (있으면 chat에 사용)
-
   private String errorMessage; // 에러 메시지
 
   private Instant startedAt;   // 작업 시작 시간
   private Instant finishedAt;  // 작업 완료 시간
   private Instant createdAt;
   private Instant updatedAt;
+
+  @PrePersist
+  void onCreate() {
+    Instant now = Instant.now();
+    if (createdAt == null) createdAt = now;
+    if (updatedAt == null) updatedAt = now;
+  }
+
+  @PreUpdate
+  void onUpdate() {
+    updatedAt = Instant.now();
+  }
 }

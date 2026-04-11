@@ -245,7 +245,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
     pass_rate = (success / total * 100) if total else 0.0
     fail_rate = (failed / total * 100) if total else 0.0
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
     window = summary["window_days"]
 
     lines: list[str] = []
@@ -343,7 +343,7 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
     json_path = out_dir / f"failure_audit_{today}.json"
     md_path = out_dir / f"failure_audit_{today}.md"

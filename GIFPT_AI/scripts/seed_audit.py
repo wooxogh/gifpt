@@ -138,7 +138,7 @@ def run_one(seed: dict[str, Any], do_render: bool, do_qa: bool) -> dict[str, Any
 
 
 def render_markdown(results: list[dict[str, Any]], mode: str) -> str:
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
     total = len(results)
     schema_bad = [r for r in results if r["schema_issues"]]
     rendered = [r for r in results if r["render_ok"] is True]
@@ -253,7 +253,7 @@ def main() -> int:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
     json_path = out_dir / f"seed_audit_{today}.json"
     md_path = out_dir / f"seed_audit_{today}.md"
