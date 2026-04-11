@@ -141,6 +141,7 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
                 render_start = time.perf_counter()
                 last_error_type = ""
                 last_stderr = ""
+                attempt_history: list[dict] = []
 
                 for attempt in range(1, 4):
                     # Generate code (initial or self-heal)
@@ -156,7 +157,11 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
                         if manim_code is None:
                             raise RuntimeError("Codegen failed after 3 rate-limit retries")
                     else:
-                        manim_code = call_llm_codegen_fix(manim_code, last_error_type, last_stderr)
+                        manim_code = call_llm_codegen_fix(
+                            manim_code, last_error_type, last_stderr,
+                            algorithm_name=algorithm,
+                            attempt_history=attempt_history,
+                        )
 
                     # Try rendering
                     try:
@@ -166,6 +171,11 @@ def animate_algorithm(job_id: int, algorithm: str, prompt: str = None):
                     except ManimRenderError as e:
                         last_error_type = e.error_type
                         last_stderr = e.stderr_snippet
+                        attempt_history.append({
+                            "attempt": attempt,
+                            "error_type": e.error_type,
+                            "stderr": e.stderr_snippet[-500:],
+                        })
                         logger.warning(
                             "[animate_algorithm] render attempt %d/3 failed: %s — self-healing",
                             attempt, e.error_type,

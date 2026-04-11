@@ -274,6 +274,7 @@ def render_video_from_instructions(instructions: str) -> str:
         max_codegen_attempts = 3
         output_dir = RESULT_DIR / "videos"
         output_name = f"video_{int(time.time())}.mp4"
+        attempt_history: list[dict] = []
 
         for attempt in range(1, max_codegen_attempts + 1):
             start = time.perf_counter()
@@ -286,7 +287,11 @@ def render_video_from_instructions(instructions: str) -> str:
                 else:
                     code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
             elif last_error_type is not None:
-                code_try = call_llm_codegen_fix(manim_code, last_error_type, last_stderr)
+                code_try = call_llm_codegen_fix(
+                    manim_code, last_error_type, last_stderr,
+                    anim_ir=anim_ir,
+                    attempt_history=attempt_history,
+                )
             else:
                 code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
 
@@ -320,6 +325,11 @@ def render_video_from_instructions(instructions: str) -> str:
             except ManimRenderError as e:
                 last_error_type = e.error_type
                 last_stderr = e.stderr_snippet
+                attempt_history.append({
+                    "attempt": attempt,
+                    "error_type": e.error_type,
+                    "stderr": e.stderr_snippet[-500:],
+                })
                 logger.warning("[Render] attempt %d/%d failed: %s — feeding error back to LLM",
                                attempt, max_codegen_attempts, e.error_type)
                 if attempt == max_codegen_attempts:

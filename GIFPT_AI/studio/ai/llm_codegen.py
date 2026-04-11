@@ -622,20 +622,95 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
     return post_process_manim_code(resp.choices[0].message.content)
 
 
-def call_llm_codegen_fix(original_code: str, error_type: str, stderr_snippet: str) -> str:
+def _build_intent_context(
+    algorithm_name: str | None = None,
+    anim_ir: dict | None = None,
+) -> str:
+    """Build a concise description of the original animation intent."""
+    parts: list[str] = []
+    if algorithm_name:
+        parts.append(f"Algorithm: {algorithm_name}")
+    if anim_ir and isinstance(anim_ir, dict):
+        meta = anim_ir.get("metadata", {})
+        if isinstance(meta, dict):
+            title = meta.get("title") or meta.get("domain", "")
+            if title:
+                parts.append(f"Topic: {title}")
+        layout = anim_ir.get("layout", [])
+        actions = anim_ir.get("actions", [])
+        if layout:
+            shapes = [item.get("shape", "?") for item in layout[:6] if isinstance(item, dict)]
+            parts.append(f"Layout: {len(layout)} elements ({', '.join(shapes)})")
+        if actions:
+            anims = [act.get("animation", "?") for act in actions[:6] if isinstance(act, dict)]
+            parts.append(f"Actions: {len(actions)} steps ({', '.join(anims)})")
+    return "\n".join(parts)
+
+
+def _build_attempt_history_context(attempt_history: list[dict] | None) -> str:
+    """Build a summary of previous failed attempts to avoid repeating mistakes."""
+    if not attempt_history:
+        return ""
+    lines = ["Previous failed attempts (do NOT repeat these mistakes):"]
+    for entry in attempt_history[-3:]:  # cap at last 3 to avoid prompt bloat
+        attempt_num = entry.get("attempt", "?")
+        err_type = entry.get("error_type", "unknown")
+        stderr = entry.get("stderr", "")
+        # Truncate stderr to key line
+        err_lines = [l for l in stderr.split("\n") if "Error" in l]
+        err_summary = err_lines[-1][:200] if err_lines else stderr[:200]
+        lines.append(f"  Attempt {attempt_num}: {err_type} — {err_summary}")
+    return "\n".join(lines)
+
+
+def call_llm_codegen_fix(
+    original_code: str,
+    error_type: str,
+    stderr_snippet: str,
+    *,
+    algorithm_name: str | None = None,
+    anim_ir: dict | None = None,
+    attempt_history: list[dict] | None = None,
+) -> str:
     """Ask LLM to fix Manim code based on a render error.
 
     Used by the self-healing codegen loop: when run_manim_code raises
     ManimRenderError, we send the broken code + error back to the LLM.
+
+    Enhanced context parameters help the LLM preserve the original animation
+    intent and avoid repeating previous mistakes:
+        algorithm_name: The algorithm being visualized (e.g. "bubble sort")
+        anim_ir: The Animation IR that drove codegen (layout + actions)
+        attempt_history: List of previous attempt dicts with error_type/stderr
     """
-    fix_prompt = (
+    intent_ctx = _build_intent_context(algorithm_name, anim_ir)
+    history_ctx = _build_attempt_history_context(attempt_history)
+
+    fix_prompt_parts = []
+
+    if intent_ctx:
+        fix_prompt_parts.append(
+            f"ORIGINAL INTENT (preserve this while fixing):\n{intent_ctx}\n"
+        )
+
+    fix_prompt_parts.append(
         f"The following Manim code failed to render.\n\n"
         f"Error type: {error_type}\n"
-        f"Error output (last 1500 chars):\n```\n{stderr_snippet[-1500:]}\n```\n\n"
+        f"Error output (last 1500 chars):\n```\n{stderr_snippet[-1500:]}\n```\n"
+    )
+
+    if history_ctx:
+        fix_prompt_parts.append(f"\n{history_ctx}\n")
+
+    fix_prompt_parts.append(
         f"Original code:\n```python\n{original_code}\n```\n\n"
         f"Fix the code so it renders successfully. "
-        f"Keep the same visual intent. Output ONLY the corrected Python code, no markdown."
+        f"Keep the same visual intent — the animation must still teach the concept described above. "
+        f"Output ONLY the corrected Python code, no markdown."
     )
+
+    fix_prompt = "\n".join(fix_prompt_parts)
+
     resp = client.chat.completions.create(
         model=MODEL_FAST,
         messages=[
