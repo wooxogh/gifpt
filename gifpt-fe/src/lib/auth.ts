@@ -30,12 +30,12 @@ export async function apiLogin(email: string, password: string): Promise<string>
   return data.accessToken
 }
 
-export async function apiSignup(email: string, password: string, openaiApiKey: string): Promise<string> {
+export async function apiSignup(email: string, password: string): Promise<string> {
   const res = await fetch('/api/v1/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ email, password, openaiApiKey }),
+    body: JSON.stringify({ email, password }),
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))

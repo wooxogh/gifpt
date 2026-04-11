@@ -50,19 +50,21 @@ case "${1:-}" in
         ;;
 esac
 
+# ── Capture today's date before the audit runs (handles midnight boundary) ──────
+TODAY=$(date '+%Y-%m-%d')
+REPORT="$REPORTS_DIR/weekly_${TODAY}.md"
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 cd "$GIFPT_AI_DIR"
 
 echo "[run_weekly] mode=$MODE started=$(date '+%Y-%m-%d %H:%M')"
+rc=0
 if "$PYTHON" -m scripts.weekly_audit "${AUDIT_ARGS[@]}"; then
     STATUS="done"
 else
-    STATUS="error (exit $?)"
+    rc=$?
+    STATUS="error (exit $rc)"
 fi
-
-# ── Find report ───────────────────────────────────────────────────────────────
-TODAY=$(date '+%Y-%m-%d')
-REPORT="$REPORTS_DIR/weekly_${TODAY}.md"
 
 # ── macOS notification ────────────────────────────────────────────────────────
 if command -v osascript &>/dev/null; then
@@ -79,3 +81,4 @@ if [[ -t 1 && -f "$REPORT" ]]; then
 fi
 
 echo "[run_weekly] status=$STATUS report=$REPORT"
+exit $rc
