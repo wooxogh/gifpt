@@ -277,6 +277,20 @@ VERTICAL SPACING FOR MULTIPLE MATRICES:
   between each center y-position. With cell_h=0.5 and 3 rows, each grid is ~1.5
   tall, so y spacing of 1.8 causes overlap. Use y offsets like 2.2, 0.0, -2.2.
 
+3D DEPTH STYLE (for stacked layers like multi-head or encoder layers):
+Use this ONLY when showing "same structure repeated in layers" (e.g., multiple
+attention heads, encoder/decoder layer stacks). Do NOT use for Q/K/V side-by-side.
+
+How it works:
+1. Build each layer as a normal make_grid.
+2. Apply skew to each grid: grid.apply_matrix([[1, 0.15], [0, 1]])
+3. Stack layers with slight diagonal offset (RIGHT * 0.3 + UP * 0.3 per layer).
+4. Add layers back-to-front so the frontmost layer renders on top.
+5. Labels go OUTSIDE the grid, positioned AFTER skew and shift:
+     label.next_to(grid, RIGHT, buff=0.3)
+6. To move a layer, group grid + label into a VGroup and move the group.
+7. Do NOT add Polygon side/top faces. Depth comes only from skew + overlap.
+
 PHASE TRANSITION RULES:
 - Do NOT impose a total time limit on the animation. Let each phase take as long
   as it needs. The prompt specifies Wait times per phase — follow those, but do not
@@ -445,14 +459,14 @@ def post_process_manim_code(code: str) -> str:
 
     for name in _UNKNOWN_HELPERS:
         code = re.sub(
-            rf'^\s*self\.play\(\s*{name}\([^)]*\)\s*\)\s*$',
-            '        self.wait(0.1)',
+            rf'^(\s*)self\.play\(\s*{name}\([^)]*\)\s*\)\s*$',
+            r'\1self.wait(0.1)',
             code,
             flags=re.M,
         )
         code = re.sub(
-            rf'^\s*{name}\([^)]*\)\s*$',
-            '        self.wait(0.1)',
+            rf'^(\s*){name}\([^)]*\)\s*$',
+            r'\1self.wait(0.1)',
             code,
             flags=re.M,
         )
