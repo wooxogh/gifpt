@@ -35,4 +35,16 @@ public class AnalysisJob {
   private Instant finishedAt;  // 작업 완료 시간
   private Instant createdAt;
   private Instant updatedAt;
+
+  @PrePersist
+  void onCreate() {
+    Instant now = Instant.now();
+    if (createdAt == null) createdAt = now;
+    if (updatedAt == null) updatedAt = now;
+  }
+
+  @PreUpdate
+  void onUpdate() {
+    updatedAt = Instant.now();
+  }
 }
