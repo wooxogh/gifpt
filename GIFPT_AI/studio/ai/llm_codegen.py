@@ -387,16 +387,21 @@ def post_process_manim_code(code: str) -> str:
     lines = code.split('\n')
     last_code_line = len(lines)
     for i in range(len(lines) - 1, -1, -1):
-        line = lines[i].strip()
-        if line == '' or line.startswith('#') or line.startswith(' ') or line.startswith('\t') or line.startswith('from ') or line.startswith('import ') or line.startswith('class ') or line.startswith('def '):
+        raw_line = lines[i]
+        stripped = raw_line.strip()
+        # Indented lines or empty lines are part of the code body
+        if stripped == '' or raw_line[0:1] in (' ', '\t'):
             last_code_line = i + 1
             break
-        # If we hit a line that looks like prose (starts with a letter, not code), trim from here
-        if line and not line.startswith(('#', ' ', '\t', 'from ', 'import ', 'class ', 'def ', '@')):
-            # Check if it's a valid Python line by simple heuristic
-            if not any(line.startswith(kw) for kw in ['if ', 'for ', 'while ', 'return ', 'self.', 'try:', 'except ', 'else:', 'elif ', 'with ', 'raise ', 'yield ', 'pass', 'break', 'continue']):
-                last_code_line = i
-                break
+        # Top-level Python constructs are valid code
+        if stripped.startswith(('#', 'from ', 'import ', 'class ', 'def ', '@')):
+            last_code_line = i + 1
+            break
+        # If we hit a line that looks like prose (top-level, not a Python keyword), trim from here
+        _CODE_KEYWORDS = ('if ', 'for ', 'while ', 'return ', 'self.', 'try:', 'except ', 'else:', 'elif ', 'with ', 'raise ', 'yield ', 'pass', 'break', 'continue')
+        if not any(stripped.startswith(kw) for kw in _CODE_KEYWORDS):
+            last_code_line = i
+            break
     code = '\n'.join(lines[:last_code_line]).rstrip()
 
     for invalid, valid in _INVALID_COLOR_MAP.items():

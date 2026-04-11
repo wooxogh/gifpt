@@ -256,7 +256,7 @@ def _finish(video: str, final_link: Path, dt: float):
 def main():
     p = argparse.ArgumentParser(description="cherry-pick: codegen + render + self-heal")
     p.add_argument("slot_dir", type=Path, help="slot directory")
-    p.add_argument("--no-llm", action="store_true", help="skip initial LLM, render existing scene.py")
+    p.add_argument("--no-llm", action="store_true", help="skip initial LLM codegen and render existing scene.py (self-heal still uses LLM on failure)")
     p.add_argument("--max-heal", type=int, default=MAX_HEAL_DEFAULT,
                     help=f"max self-heal attempts (default: {MAX_HEAL_DEFAULT})")
     args = p.parse_args()

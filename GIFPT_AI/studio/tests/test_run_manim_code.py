@@ -27,7 +27,7 @@ _mocks = {
 for name, mock in _mocks.items():
     sys.modules.setdefault(name, mock)
 
-from studio.video_render import run_manim_code  # noqa: E402
+from studio.video_render import run_manim_code, ManimRenderError  # noqa: E402
 
 
 class TestRunManim(unittest.TestCase):
@@ -69,8 +69,8 @@ class TestRunManim(unittest.TestCase):
             mock_run.assert_called_once()
 
     @patch("studio.video_render.subprocess.run")
-    def test_render_failure_retries_then_fallback(self, mock_run):
-        """subprocess always raises CalledProcessError → fallback scene rendered."""
+    def test_render_failure_raises_manim_error(self, mock_run):
+        """subprocess raises CalledProcessError → ManimRenderError raised."""
         mock_run.side_effect = subprocess.CalledProcessError(1, "manim", stderr="NameError: foo")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -78,57 +78,36 @@ class TestRunManim(unittest.TestCase):
             output_name = "test_video.mp4"
 
             with patch("studio.video_render.tempfile.NamedTemporaryFile") as mock_tmp:
-                call_count = 0
+                fake = MagicMock()
+                fake.name = str(output_dir / "primary.py")
+                fake.__enter__ = MagicMock(return_value=fake)
+                fake.__exit__ = MagicMock(return_value=False)
+                mock_tmp.return_value = fake
 
-                def make_tmp(*args, **kwargs):
-                    nonlocal call_count
-                    call_count += 1
-                    fake = MagicMock()
-                    # Primary attempts use a distinct name; fallback uses another
-                    if call_count <= 3:
-                        fake.name = str(output_dir / f"primary_{call_count}.py")
-                    else:
-                        name = str(output_dir / "fallback.py")
-                        fake.name = name
-                        # Create the fallback output so the file-search succeeds
-                        stem = Path(name).stem
-                        fb_candidate = output_dir / "media" / "videos" / stem / "480p15" / output_name
-                        fb_candidate.parent.mkdir(parents=True, exist_ok=True)
-                        fb_candidate.write_text("fallback mp4")
-                        # Make fallback subprocess succeed
-                        mock_run.side_effect = [
-                            subprocess.CalledProcessError(1, "manim", stderr="err"),
-                            subprocess.CalledProcessError(1, "manim", stderr="err"),
-                            subprocess.CalledProcessError(1, "manim", stderr="err"),
-                            MagicMock(returncode=0),  # fallback succeeds
-                        ]
-                    fake.__enter__ = MagicMock(return_value=fake)
-                    fake.__exit__ = MagicMock(return_value=False)
-                    return fake
+                with self.assertRaises(ManimRenderError):
+                    run_manim_code("bad code", output_dir, output_name)
 
-                mock_tmp.side_effect = make_tmp
-
-                # Should not raise — fallback path returned
-                try:
-                    result = run_manim_code("bad code", output_dir, output_name)
-                    # Either found a path or raised RuntimeError (both acceptable)
-                except RuntimeError:
-                    pass  # fallback also failed — acceptable in test
+            mock_run.assert_called_once()
 
     @patch("studio.video_render.subprocess.run")
-    def test_render_timeout_triggers_fallback(self, mock_run):
-        """TimeoutExpired on all 3 attempts → fallback attempted."""
+    def test_render_timeout_raises_manim_error(self, mock_run):
+        """TimeoutExpired → ManimRenderError with error_type 'timeout'."""
         mock_run.side_effect = subprocess.TimeoutExpired("manim", 180)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = Path(tmp_dir)
-            try:
-                run_manim_code("from manim import *", output_dir, "out.mp4")
-            except RuntimeError:
-                pass  # Expected when fallback also times out
 
-        # subprocess.run called at least 3 times (primary) + 1 (fallback attempt)
-        self.assertGreaterEqual(mock_run.call_count, 3)
+            with patch("studio.video_render.tempfile.NamedTemporaryFile") as mock_tmp:
+                fake = MagicMock()
+                fake.name = str(output_dir / "scene.py")
+                fake.__enter__ = MagicMock(return_value=fake)
+                fake.__exit__ = MagicMock(return_value=False)
+                mock_tmp.return_value = fake
+
+                with self.assertRaises(ManimRenderError):
+                    run_manim_code("from manim import *", output_dir, "out.mp4")
+
+            mock_run.assert_called_once()
 
     @patch("studio.video_render.subprocess.run")
     def test_manim_command_args(self, mock_run):

@@ -174,6 +174,9 @@ def run_manim_code(code: str, output_dir: Path, output_name: str | None = None) 
         logger.warning("run_manim_code timed out")
         raise ManimRenderError("timeout", "render timed out after 180s", code)
 
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
     raise ManimRenderError("runtime", "render produced no video file", code)
 
 

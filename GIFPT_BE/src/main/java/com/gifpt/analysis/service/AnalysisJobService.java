@@ -4,6 +4,7 @@ import com.gifpt.analysis.domain.AnalysisJob;
 import com.gifpt.analysis.domain.AnalysisStatus;
 import com.gifpt.analysis.repository.AnalysisJobRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import com.gifpt.analysis.dto.AnalysisCallbackDTO;
 
@@ -11,7 +12,6 @@ import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
-@SuppressWarnings("null")
 public class AnalysisJobService {
   private final AnalysisJobRepository repo;
 
@@ -29,7 +29,7 @@ public class AnalysisJobService {
     return repo.save(job);
   }
 
-  public AnalysisJob completeSuccess(long jobId, String resultUrl, String summary) {
+  public AnalysisJob completeSuccess(long jobId, @Nullable String resultUrl, @Nullable String summary) {
     var job = repo.findById(jobId).orElseThrow();
     job.setStatus(AnalysisStatus.SUCCESS);
     job.setResultUrl(resultUrl);
@@ -38,7 +38,7 @@ public class AnalysisJobService {
     return repo.save(job);
   }
 
-  public AnalysisJob completeFailed(long jobId, String errorMessage) {
+  public AnalysisJob completeFailed(long jobId, @Nullable String errorMessage) {
     var job = repo.findById(jobId).orElseThrow();
     job.setStatus(AnalysisStatus.FAILED);
     job.setErrorMessage(errorMessage);
@@ -47,11 +47,6 @@ public class AnalysisJobService {
   }
 
   public void markCompleted(Long jobId, AnalysisCallbackDTO dto) {
-    // status가 null이면 일단 아무 것도 안 함
-    if (dto.status() == null) {
-      return;
-    }
-
     switch (dto.status()) {
       case RUNNING -> markRunning(jobId);
       case SUCCESS -> completeSuccess(jobId, dto.resultUrl(), dto.summary());
