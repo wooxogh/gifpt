@@ -40,14 +40,8 @@ public class AuthController {
     this.refreshService = rs;
   }
 
-  public record SignupReq(String email, String password, String openaiApiKey) {}
+  public record SignupReq(String email, String password) {}
   public record LoginReq(String email, String password) {}
-
-  private static String normalizeApiKey(String apiKey) {
-    if (apiKey == null) return null;
-    String trimmed = apiKey.trim();
-    return trimmed.isEmpty() ? null : trimmed;
-  }
 
   @PostMapping("/signup")
   public ResponseEntity<?> signup(@RequestBody SignupReq req, HttpServletResponse res) {
@@ -57,7 +51,6 @@ public class AuthController {
     User u = new User();
     u.setEmail(req.email());
     u.setPasswordHash(encoder.encode(req.password()));
-    u.setOpenaiApiKey(normalizeApiKey(req.openaiApiKey()));
     userRepo.save(u);
 
     Map<String, Object> claims = new HashMap<>();
@@ -88,7 +81,6 @@ public class AuthController {
     User user = userRepo.findByEmail(email).orElseThrow();
     Map<String, Object> claims = new HashMap<>();
     claims.put("role", "USER");
-    // displayName removed from signup flow
     String access = jwtService.generateToken(user.getEmail(), claims);
     String refresh = refreshService.issue(user, 7);
 
@@ -105,19 +97,6 @@ public class AuthController {
         "accessToken", access
       )
     );
-  }
-
-  @PostMapping("/refresh")
-  public ResponseEntity<?> refresh(@CookieValue("refreshToken") String rawRefresh) {
-    var token = refreshService.validate(rawRefresh)
-        .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
-    var user = token.getUser();
-    Map<String, Object> claims = new HashMap<>();
-    claims.put("role", "USER");
-    // displayName removed from signup flow
-
-    String newAccess = jwtService.generateToken(user.getEmail(), claims);
-    return ResponseEntity.ok(Map.of("accessToken", newAccess));
   }
 
   @PostMapping("/logout")

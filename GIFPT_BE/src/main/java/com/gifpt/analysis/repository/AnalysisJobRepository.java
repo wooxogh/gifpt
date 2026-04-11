@@ -10,8 +10,6 @@ import java.util.Collection;
 import java.util.Optional;
 
 public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, Long> {
-    Optional<AnalysisJob> findByIdAndUserId(Long id, Long userId);
-
     Optional<AnalysisJob> findFirstByAlgorithmSlugAndStatusInOrderByIdDesc(String algorithmSlug, Collection<AnalysisStatus> statuses);
 
     // Gallery (public): successful jobs from name mode only (algorithmSlug is present)

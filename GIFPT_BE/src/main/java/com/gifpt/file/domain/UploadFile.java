@@ -26,11 +26,6 @@ public class UploadFile {
     @Column(nullable = false)
     private String fileName;
 
-    private String s3Url; // 나중에 S3로 바꾸면 활용 가능
-
-    @Column(length = 2000)
-    private String prompt;
-
     @Builder.Default
     private Instant uploadedAt = Instant.now();
 }
