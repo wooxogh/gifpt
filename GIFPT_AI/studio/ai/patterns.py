@@ -6,8 +6,10 @@ class PatternType(str, Enum):
     GRID = "grid"
     SEQUENCE = "sequence"
     FLOW = "flow"
-    GRAPH = "graph" 
+    GRAPH = "graph"
     SEQ_ATTENTION = "seq_attention"
+    TREE = "tree"
+    LINEAR = "linear"
 
 
 # 도메인 → 패턴 확정 (대표 도메인 처리)
@@ -32,10 +34,17 @@ DOMAIN_TO_PATTERN = {
     "shortest_path": PatternType.GRAPH,
     "graph": PatternType.GRAPH,
     
-    # Tree도 GRAPH 패턴 사용 (노드 + 엣지 구조)
-    "binary_tree": PatternType.GRAPH,
-    "tree": PatternType.GRAPH,
-    
+    # Tree는 계층적 노드-엣지 구조
+    "binary_tree": PatternType.TREE,
+    "tree": PatternType.TREE,
+    "bst": PatternType.TREE,
+    "heap": PatternType.TREE,
+
+    # Linear 자료구조 (연결 리스트, 스택, 큐)
+    "linked_list": PatternType.LINEAR,
+    "stack": PatternType.LINEAR,
+    "queue": PatternType.LINEAR,
+
     # Dynamic programming table은 grid
     "dynamic_programming": PatternType.GRID,
 }
