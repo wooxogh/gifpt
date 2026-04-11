@@ -162,3 +162,4 @@ cython_debug/
 # Audit scripts output
 GIFPT_AI/reports/
 GIFPT_AI/scripts/_tmp/
+GIFPT_AI/scripts/.env.audit
