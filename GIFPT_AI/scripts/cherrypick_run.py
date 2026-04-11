@@ -86,7 +86,8 @@ def _extract_error_line(code: str, stderr: str) -> str:
     return ""
 
 
-def heal_code(client, code: str, error_msg: str, model: str, post_process) -> str:
+def heal_code(client, code: str, error_msg: str, model: str, post_process,
+              temperature: float = 0.0) -> str:
     """Send broken code + error to LLM, get fixed code back."""
     code_context = _extract_error_line(code, error_msg)
     heal_prompt = f"""The following Manim code failed to render.
@@ -108,6 +109,7 @@ Fix the error and return the complete corrected Python code."""
             {"role": "system", "content": HEAL_SYSTEM_PROMPT},
             {"role": "user", "content": heal_prompt},
         ],
+        temperature=temperature,
         timeout=120,
     )
     raw = resp.choices[0].message.content or ""
@@ -209,9 +211,12 @@ def run(slot_dir: Path, no_llm: bool, max_heal: int) -> int:
         short_error = "\n".join(error_lines[-5:]) if len(error_lines) > 5 else error_detail
         print(f"[cherrypick]   error: {short_error[:200]}")
 
+        # Temperature escalation: 0.0 → 0.2 → 0.4 for diversity on retries
+        heal_temp = min(0.4, (attempt - 1) * 0.2)
         t_heal = time.monotonic()
         try:
-            code = heal_code(client, code, error_detail or "unknown error", model, post_process)
+            code = heal_code(client, code, error_detail or "unknown error", model, post_process,
+                             temperature=heal_temp)
         except Exception as exc:
             print(f"[cherrypick]   heal LLM call failed: {exc}")
             break

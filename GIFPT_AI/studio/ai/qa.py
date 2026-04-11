@@ -28,14 +28,6 @@ except Exception as exc:
 
 # ── 1. IR Validation ─────────────────────────────────────────────────────────
 
-class IRValidationError(Exception):
-    """Raised when IR fails structural validation."""
-    def __init__(self, stage: str, issues: list[str]):
-        self.stage = stage
-        self.issues = issues
-        super().__init__(f"IR validation failed at {stage}: {issues}")
-
-
 def validate_pseudocode_ir(ir: dict) -> list[str]:
     """Validate pseudocode IR structure. Returns list of issues (empty = pass)."""
     issues = []

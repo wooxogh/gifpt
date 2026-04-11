@@ -217,6 +217,12 @@ CODE RULES:
 - Define class AlgorithmScene(Scene) with construct(self)
 - Output ONLY valid Python code (no markdown, no prose, no trailing explanation text)
 
+SAFE BOUNDS — all content must stay within these coordinates:
+  x: [-6.5, 6.5], y: [-3.5, 3.5]
+  If placing N elements horizontally, each element width ≤ 13.0 / N.
+  If placing N elements vertically, each element height ≤ 7.0 / N.
+  Always verify your layout arithmetic stays in bounds before coding.
+
 MANIM CE 0.19.0 API CONSTRAINTS (violating these causes render failures):
 - NO LaTeX: Never use Matrix, IntegerTable, MathTex, or Tex. Use only Text() for
   all text and numbers. Build grids/vectors manually with VGroup + Rectangle + Text.
@@ -234,6 +240,11 @@ MANIM CE 0.19.0 API CONSTRAINTS (violating these causes render failures):
   use max(computed, 0.1).
 - Do NOT use DashedLine, DashedArrow, CurvedArrow, ArcBetweenPoints, or TracedPath.
   Use Line or Arrow instead.
+- Do NOT access self.camera.frame. The default Scene camera does not have a frame
+  attribute. Never use self.camera.frame.animate or self.camera.frame.set().
+- Do NOT create a text-only summary phase at the end (e.g., 3 lines of Text on a
+  blank screen). It adds no visual value. End the animation after the last
+  substantive phase.
 
 MATRIX/GRID HELPER PATTERN (use this when building grids of numbers):
 Define as a method on the scene class:
@@ -255,7 +266,21 @@ Access: grid[row][col] -> VGroup(rect, txt). grid[row][col][0] = Rectangle,
 grid[row][col][1] = Text. Highlight a row: SurroundingRectangle(grid[1], color=YELLOW).
 Always call make_grid THEN move_to THEN place labels relative to the grid.
 
+ROW/COLUMN LABEL ALIGNMENT (labels must line up with their row or column):
+- Row label for row i: label.move_to(grid[i].get_center()).align_to(grid, LEFT).shift(LEFT * 0.8)
+- Column label for col j: label.move_to(grid[0][j].get_center()).align_to(grid, UP).shift(UP * 0.6)
+  Do NOT place all labels as a single VGroup arranged independently — each label
+  must be anchored to the y-center of its row or x-center of its column.
+
+VERTICAL SPACING FOR MULTIPLE MATRICES:
+- When stacking 3+ matrices vertically (e.g., Q/K/V), use at least 2.0 units
+  between each center y-position. With cell_h=0.5 and 3 rows, each grid is ~1.5
+  tall, so y spacing of 1.8 causes overlap. Use y offsets like 2.2, 0.0, -2.2.
+
 PHASE TRANSITION RULES:
+- Do NOT impose a total time limit on the animation. Let each phase take as long
+  as it needs. The prompt specifies Wait times per phase — follow those, but do not
+  compress or rush content to fit a target duration.
 - Between phases, clear the ENTIRE screen with this exact pattern:
     self.play(*[FadeOut(mob) for mob in self.mobjects])
   This removes ALL elements. Then re-add title and caption fresh for the new phase.
@@ -367,6 +392,9 @@ _INVALID_COLOR_MAP = {
 _UNKNOWN_HELPERS = [
     'AddPointToGraph', 'PlotPoint', 'CreateGraph', 'AnimateCurvePoint',
     'DrawArrowBetween', 'ShowValueOnPlot',
+    # LLM-hallucinated animation/class names
+    'Highlight', 'Focus', 'Emphasize',
+    'MobjectTable', 'IntegerTable',
 ]
 
 

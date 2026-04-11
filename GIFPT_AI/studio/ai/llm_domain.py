@@ -2,7 +2,6 @@
 import os, json
 from openai import OpenAI
 from dotenv import load_dotenv
-from .llm import call_llm_domain_ir
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -76,9 +75,3 @@ def call_llm_detect_domain(user_text: str) -> tuple[str, bool]:
         is_3d = bool(raw_is_3d)
     return domain, is_3d
 
-def build_sorting_trace_ir(user_text: str) -> dict:
-    """
-    정렬 trace는 도메인 템플릿 시스템(domain_ir)을 그대로 사용.
-    (sorting_trace 템플릿은 prompts.py에 이미 존재함.)
-    """
-    return call_llm_domain_ir("sorting_trace", user_text)
