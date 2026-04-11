@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 @Getter
+@SuppressWarnings("null")
 public class CustomUserPrincipal implements UserDetails {
     private final User user;
 

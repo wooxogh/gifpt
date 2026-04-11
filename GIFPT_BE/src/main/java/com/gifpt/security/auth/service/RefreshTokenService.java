@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@SuppressWarnings("null")
 public class RefreshTokenService {
   private final RefreshTokenRepository repo;
 

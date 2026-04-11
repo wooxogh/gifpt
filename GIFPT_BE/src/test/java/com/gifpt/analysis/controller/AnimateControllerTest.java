@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class AnimateControllerTest {
 
     @Mock
@@ -141,12 +142,6 @@ class AnimateControllerTest {
     void animate_cacheMiss_authenticated_returns202WithJobId() {
         when(s3StorageService.objectExists(anyString())).thenReturn(false);
 
-        // Mock job save
-        AnalysisJob savedJob = AnalysisJob.builder()
-                .userId(42L)
-                .status(AnalysisStatus.PENDING)
-                .prompt("bubble sort")
-                .build();
         // Simulate auto-generated ID
         when(analysisJobRepository.save(any(AnalysisJob.class))).thenAnswer(inv -> {
             AnalysisJob j = inv.getArgument(0);

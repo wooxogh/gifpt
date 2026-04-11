@@ -8,6 +8,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
+@SuppressWarnings("null")
 public class AwsS3Config {
 
     @Value("${AWS_REGION:ap-northeast-2}")

@@ -4,6 +4,7 @@ import com.gifpt.analysis.dto.AnalysisCallbackDTO;
 import com.gifpt.analysis.service.AnalysisJobService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,7 +33,7 @@ public class AnalysisCallbackController {
     @PostMapping("/{jobId}/complete")
     public ResponseEntity<Void> complete(
             @PathVariable Long jobId,
-            @RequestHeader(value = "X-Callback-Secret", required = false) String secret,
+            @RequestHeader(value = "X-Callback-Secret", required = false) @Nullable String secret,
             @RequestBody AnalysisCallbackDTO dto
     ) {
         if (!allowUnsignedCallbacks && !callbackSecret.equals(secret)) {
