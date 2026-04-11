@@ -17,10 +17,11 @@ RESULT_DIR = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
 SEP = "=" * 80
 SUBSEP = "-" * 80
 
-UNKNOWN_HELPERS = [
+# LLM-hallucinated helper functions — shared between basic and AST validators
+UNKNOWN_HELPERS = frozenset({
     'AddPointToGraph', 'PlotPoint', 'CreateGraph', 'AnimateCurvePoint',
-    'DrawArrowBetween', 'ShowValueOnPlot'
-]
+    'DrawArrowBetween', 'ShowValueOnPlot',
+})
 
 def _sanitize_text(text: str) -> str:
     """main.py의 sanitize_text와 같은 역할 (간단한 공백/줄바꿈 정리)."""
@@ -67,9 +68,7 @@ FORBIDDEN_NAMES = frozenset({
     "DashedLine", "DashedArrow", "CurvedArrow", "ArcBetweenPoints", "TracedPath",
     # LLM-hallucinated classes
     "Highlight", "Focus", "Emphasize",
-    "AddPointToGraph", "PlotPoint", "CreateGraph",
-    "AnimateCurvePoint", "DrawArrowBetween", "ShowValueOnPlot",
-})
+}) | UNKNOWN_HELPERS  # Reuse shared set — keeps basic & AST validators in sync
 
 # Attribute calls that crash at runtime
 FORBIDDEN_ATTRS = frozenset({
@@ -116,18 +115,26 @@ def validate_manim_code_ast(code: str) -> list[dict]:
                     "message": f"Forbidden API '{func.id}' at line {func.lineno} — not available in Manim CE 0.19.0",
                     "line": func.lineno,
                 })
-
-        # Step 3: Forbidden attribute access — .deepcopy(), .set_text()
-        if isinstance(node, ast.Attribute):
-            if node.attr in FORBIDDEN_ATTRS:
-                replacement = ".copy()" if node.attr == "deepcopy" else "new Text + Transform"
+            # Qualified calls: manim.Matrix(), mn.MathTex(), etc.
+            elif isinstance(func, ast.Attribute) and func.attr in FORBIDDEN_NAMES:
                 issues.append({
-                    "error_type": "forbidden_method",
-                    "message": f"'.{node.attr}()' at line {node.lineno} — use {replacement} instead",
-                    "line": node.lineno,
+                    "error_type": "forbidden_api",
+                    "message": f"Forbidden API '{func.attr}' at line {func.lineno} — not available in Manim CE 0.19.0",
+                    "line": func.lineno,
                 })
 
-            # Step 4: self.camera.frame access
+            # Step 3: Forbidden method calls — obj.deepcopy(), text.set_text()
+            # Only flag when actually called (ast.Call), not bare attribute access.
+            if isinstance(func, ast.Attribute) and func.attr in FORBIDDEN_ATTRS:
+                replacement = ".copy()" if func.attr == "deepcopy" else "new Text + Transform"
+                issues.append({
+                    "error_type": "forbidden_method",
+                    "message": f"'.{func.attr}()' at line {func.lineno} — use {replacement} instead",
+                    "line": func.lineno,
+                })
+
+        # Step 4: self.camera.frame access
+        if isinstance(node, ast.Attribute):
             if node.attr in FORBIDDEN_CAMERA_ATTRS:
                 # Check if it's self.camera.frame
                 if (isinstance(node.value, ast.Attribute)

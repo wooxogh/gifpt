@@ -83,6 +83,28 @@ class TestForbiddenNames:
         issues = validate_manim_code_ast(code)
         assert any("AddPointToGraph" in i["message"] for i in issues)
 
+    def test_qualified_matrix_detected(self):
+        """manim.Matrix(...) should be caught too."""
+        code = (
+            "import manim\n"
+            "class AlgorithmScene(manim.Scene):\n"
+            "    def construct(self):\n"
+            "        m = manim.Matrix([[1,2]])\n"
+        )
+        issues = validate_manim_code_ast(code)
+        assert any(i["error_type"] == "forbidden_api" and "Matrix" in i["message"] for i in issues)
+
+    def test_aliased_module_detected(self):
+        """mn.DashedLine(...) should be caught."""
+        code = (
+            "import manim as mn\n"
+            "class AlgorithmScene(mn.Scene):\n"
+            "    def construct(self):\n"
+            "        line = mn.DashedLine(mn.LEFT, mn.RIGHT)\n"
+        )
+        issues = validate_manim_code_ast(code)
+        assert any("DashedLine" in i["message"] for i in issues)
+
     def test_valid_classes_not_flagged(self):
         code = (
             "from manim import *\n"
@@ -129,6 +151,17 @@ class TestForbiddenAttrs:
         )
         assert validate_manim_code_ast(code) == []
 
+    def test_bare_deepcopy_attr_not_flagged(self):
+        """Referencing .deepcopy without calling it should not flag."""
+        code = (
+            "from manim import *\n"
+            "class AlgorithmScene(Scene):\n"
+            "    def construct(self):\n"
+            "        method_ref = Circle.deepcopy\n"
+        )
+        issues = validate_manim_code_ast(code)
+        assert not any(i["error_type"] == "forbidden_method" for i in issues)
+
 
 class TestCameraFrame:
     def test_camera_frame_detected(self):
@@ -142,13 +175,14 @@ class TestCameraFrame:
         assert any("camera.frame" in i["message"] for i in issues)
 
     def test_non_self_camera_not_flagged(self):
+        """cam.camera.frame access (not self.) should not be flagged."""
         code = (
             "from manim import *\n"
             "class AlgorithmScene(Scene):\n"
             "    def construct(self):\n"
-            "        cam = type('obj', (object,), {'camera': type('c', (object,), {'frame': 1})})()\n"
+            "        cam = SomeObject()\n"
+            "        val = cam.camera.frame\n"
         )
-        # This is not self.camera.frame, should not flag
         issues = validate_manim_code_ast(code)
         assert not any("camera.frame" in i.get("message", "") for i in issues)
 
