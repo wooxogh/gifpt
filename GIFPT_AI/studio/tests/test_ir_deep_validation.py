@@ -1,6 +1,7 @@
 """Tests for Pydantic-based deep IR validation.
 
 Run from GIFPT_AI/: python3 -m pytest studio/tests/test_ir_deep_validation.py -v
+                 or: python3 -m unittest studio.tests.test_ir_deep_validation -v
 """
 import sys
 from pathlib import Path

@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -217,7 +217,7 @@ def validate_pseudocode_ir_deep(ir: dict) -> list[str]:
     try:
         PseudocodeIR.model_validate(ir)
         return []
-    except Exception as e:
+    except (ValidationError, TypeError, ValueError) as e:
         # Flatten Pydantic validation errors into human-readable strings
         issues = []
         if hasattr(e, "errors"):
@@ -227,6 +227,9 @@ def validate_pseudocode_ir_deep(ir: dict) -> list[str]:
         else:
             issues.append(str(e))
         return issues
+    except Exception as e:
+        logger.exception("Unexpected error in validate_pseudocode_ir_deep")
+        return [f"Internal validator error: {type(e).__name__}: {e}"]
 
 
 def validate_anim_ir_deep(ir: dict) -> list[str]:
@@ -241,7 +244,7 @@ def validate_anim_ir_deep(ir: dict) -> list[str]:
     try:
         AnimIR.model_validate(ir)
         return []
-    except Exception as e:
+    except (ValidationError, TypeError, ValueError) as e:
         issues = []
         if hasattr(e, "errors"):
             for err in e.errors():
@@ -250,6 +253,9 @@ def validate_anim_ir_deep(ir: dict) -> list[str]:
         else:
             issues.append(str(e))
         return issues
+    except Exception as e:
+        logger.exception("Unexpected error in validate_anim_ir_deep")
+        return [f"Internal validator error: {type(e).__name__}: {e}"]
 
 
 # ── 2. Vision QA ──────────────────────────────────────────────────────────────
