@@ -70,12 +70,40 @@ def classify_runtime_error(stderr: str):
         m = re.search(r"NameError: name '([^']+)' is not defined", stderr)
         name = m.group(1) if m else "<unknown>"
         return {"error_type": "runtime_name", "message": f"undefined name: {name}"}
-    if 'ImportError' in stderr:
-        return {"error_type": "runtime_env", "message": "import error"}
+    if 'ImportError' in stderr or 'ModuleNotFoundError' in stderr:
+        m = re.search(r"(?:ImportError|ModuleNotFoundError): ([^\n]+)", stderr)
+        detail = m.group(1) if m else "import error"
+        return {"error_type": "runtime_env", "message": detail}
+    if 'AttributeError' in stderr:
+        m = re.search(r"AttributeError: ([^\n]+)", stderr)
+        detail = m.group(1) if m else "attribute error"
+        return {"error_type": "runtime_attr", "message": detail}
+    if 'TypeError' in stderr:
+        m = re.search(r"TypeError: ([^\n]+)", stderr)
+        detail = m.group(1) if m else "type error"
+        return {"error_type": "runtime_type", "message": detail}
+    if 'ValueError' in stderr:
+        m = re.search(r"ValueError: ([^\n]+)", stderr)
+        detail = m.group(1) if m else "value error"
+        return {"error_type": "runtime_value", "message": detail}
+    if 'IndexError' in stderr:
+        m = re.search(r"IndexError: ([^\n]+)", stderr)
+        detail = m.group(1) if m else "index error"
+        return {"error_type": "runtime_index", "message": detail}
+    if 'KeyError' in stderr:
+        m = re.search(r"KeyError: ([^\n]+)", stderr)
+        detail = m.group(1) if m else "key error"
+        return {"error_type": "runtime_key", "message": detail}
+    if 'ZeroDivisionError' in stderr:
+        return {"error_type": "runtime_zerodiv", "message": "division by zero"}
     if 'MemoryError' in stderr:
         return {"error_type": "resource", "message": "out of memory"}
     if 'Timeout' in stderr or 'timed out' in stderr:
         return {"error_type": "timeout", "message": "render timeout"}
+    # fallback: extract the last Exception line
+    m = re.search(r"(\w+Error): ([^\n]+)", stderr)
+    if m:
+        return {"error_type": "runtime", "message": f"{m.group(1)}: {m.group(2)}"}
     return {"error_type": "runtime", "message": "unknown runtime error"}
 
 

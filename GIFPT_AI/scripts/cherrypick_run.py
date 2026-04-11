@@ -89,16 +89,26 @@ def run(slot_dir: Path, no_llm: bool) -> int:
     code = scene_path.read_text()
 
     print(f"[cherrypick] rendering {slot_dir.name} ...")
-    from studio.video_render import run_manim_code, ManimRenderError
+    from studio.video_render import run_manim_code, ManimRenderError, classify_runtime_error
 
     t0 = time.monotonic()
     try:
         video = run_manim_code(code, slot_dir, "video.mp4")
     except ManimRenderError as e:
         dt = time.monotonic() - t0
-        print(f"[cherrypick] RENDER FAIL ({dt:.1f}s): {e.error_type}")
-        print("--- stderr (last 1500 chars) ---")
-        print(e.stderr_snippet[-1500:])
+        err = classify_runtime_error(e.stderr_snippet)
+        print(f"[cherrypick] RENDER FAIL ({dt:.1f}s)")
+        print(f"[cherrypick] error_type: {err['error_type']}")
+        print(f"[cherrypick] message: {err['message']}")
+
+        # Save full stderr to file for debugging
+        stderr_path = slot_dir / "error.log"
+        stderr_path.write_text(e.stderr_snippet)
+        print(f"[cherrypick] full stderr saved → {stderr_path}")
+
+        # Print last 800 chars for quick glance
+        print("--- stderr (last 800 chars) ---")
+        print(e.stderr_snippet[-800:])
         print("--- end stderr ---")
         return 1
     except Exception:
