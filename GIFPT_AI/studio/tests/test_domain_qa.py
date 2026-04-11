@@ -1,6 +1,7 @@
 """Tests for domain-aware Vision QA scoring.
 
 Run from GIFPT_AI/: python3 -m pytest studio/tests/test_domain_qa.py -v
+                 or: python3 -m unittest studio.tests.test_domain_qa -v
 """
 import sys
 from pathlib import Path
@@ -121,13 +122,15 @@ class TestComputeScoreWithDomain:
         assert score == 8.0
         assert penalties == []
 
-    def test_missing_check_defaults_to_pass(self):
-        """If a check key is missing from domain_checks, assume pass (don't penalize)."""
+    def test_missing_check_penalized(self):
+        """If a check key is missing from domain_checks, treat as MISSING and penalize."""
         base = {"correctness": 7, "clarity": 7, "completeness": 7, "readability": 7}
-        checks = {"elements_visible": True}  # other keys missing
+        checks = {"elements_visible": True}  # other 3 keys missing
         score, penalties = compute_domain_adjusted_score(base, checks, "sorting")
-        assert score == 7.0
-        assert penalties == []
+        # Missing: comparison_shown(-2.5), sorted_progression(-1.5), state_highlighting(-1.0) = -5.0
+        assert score == 2.0
+        assert len(penalties) == 3
+        assert all("MISSING" in p for p in penalties)
 
 
 class TestComputeScoreAllDomains:

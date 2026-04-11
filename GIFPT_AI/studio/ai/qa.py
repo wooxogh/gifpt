@@ -111,50 +111,7 @@ def validate_anim_ir(ir: dict) -> list[str]:
 
 # ── 2. Vision QA ──────────────────────────────────────────────────────────────
 
-# Legacy DOMAIN_QA_CRITERIA — kept for backward compatibility
-DOMAIN_QA_CRITERIA = {
-    "sorting": (
-        "\nDOMAIN-SPECIFIC CHECKS for SORTING visualization:\n"
-        "- Are array elements clearly visible as distinct cells with values?\n"
-        "- Can you see comparison/swap operations being performed step by step?\n"
-        "- Is the progression from unsorted to sorted state visible?\n"
-        "- Are compared/swapped elements highlighted or color-coded?\n"
-    ),
-    "graph_traversal": (
-        "\nDOMAIN-SPECIFIC CHECKS for GRAPH visualization:\n"
-        "- Are nodes clearly visible as circles/shapes with labels?\n"
-        "- Are edges/connections between nodes drawn correctly?\n"
-        "- Is the traversal order visible (e.g., visited nodes change color)?\n"
-        "- Are queue/stack states shown if applicable?\n"
-    ),
-    "cnn_param": (
-        "\nDOMAIN-SPECIFIC CHECKS for CNN visualization:\n"
-        "- Are layers (input, convolution, pooling, output) distinguishable?\n"
-        "- Are kernel/filter operations animated (sliding window)?\n"
-        "- Are dimensions/shapes annotated on each layer?\n"
-        "- Is the data flow direction clear (left to right or similar)?\n"
-    ),
-    "dynamic_programming": (
-        "\nDOMAIN-SPECIFIC CHECKS for DP visualization:\n"
-        "- Is a table/grid structure visible showing subproblem results?\n"
-        "- Are cell fill-ins animated in the correct order?\n"
-        "- Are dependencies between cells shown (arrows or highlights)?\n"
-    ),
-    "cache": (
-        "\nDOMAIN-SPECIFIC CHECKS for CACHE visualization:\n"
-        "- Are cache slots/queue structures visible?\n"
-        "- Are hit/miss events clearly indicated?\n"
-        "- Is the eviction process animated?\n"
-    ),
-    "transformer": (
-        "\nDOMAIN-SPECIFIC CHECKS for TRANSFORMER visualization:\n"
-        "- Are encoder/decoder blocks distinguishable?\n"
-        "- Is the attention mechanism visually represented (weights, arrows)?\n"
-        "- Is the data flow through layers shown sequentially?\n"
-    ),
-}
-
-# ── Enhanced domain-specific QA config ────────────────────────────────────────
+# ── Domain-specific QA config ─────────────────────────────────────────────────
 
 # Base criteria weights (sum to 1.0)
 DEFAULT_WEIGHTS = {
@@ -284,10 +241,15 @@ def compute_domain_adjusted_score(
     penalty_reasons: list[str] = []
     total_penalty = 0.0
 
-    if config and domain_checks:
+    reported_checks = domain_checks or {}
+    if config:
         for chk in config["required_checks"]:
             key = chk["key"]
-            passed = domain_checks.get(key, True)  # default to True if not reported
+            if key not in reported_checks:
+                total_penalty += chk["penalty"]
+                penalty_reasons.append(f"{chk['desc']} — MISSING (penalty: -{chk['penalty']})")
+                continue
+            passed = reported_checks[key]
             if not passed:
                 total_penalty += chk["penalty"]
                 penalty_reasons.append(f"{chk['desc']} — FAILED (penalty: -{chk['penalty']})")
@@ -356,8 +318,10 @@ def vision_qa(
 
     Returns:
         {
-            "score": float (0-10),
-            "passed": bool,
+            "score": float (-1 to 10; -1 means vision QA was unavailable
+                      because the OpenAI client was not initialized or an error occurred),
+            "passed": bool (True when score >= threshold, or when vision QA is
+                       unavailable and the check is skipped),
             "issues": list[str],
             "summary": str,
             "base_scores": dict (per-criterion scores, if available),
@@ -473,7 +437,9 @@ def vision_qa(
         effective_threshold = (config or {}).get("threshold", threshold)
 
         if penalties:
-            issues = list(issues) + penalties
+            if not isinstance(issues, list):
+                issues = [issues] if issues else []
+            issues = issues + penalties
 
         logger.info(
             "vision_qa domain=%s score=%.1f (base=%s) penalties=%d passed=%s summary=%s",
