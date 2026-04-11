@@ -173,9 +173,21 @@ class TestBuildIntentContext:
         result = _build_intent_context(None, {})
         assert result == ""
 
-    def test_malformed_ir_no_crash(self):
+    def test_layout_as_string_ignored(self):
+        """Non-list layout should be silently ignored, not produce 'Layout: 10 elements'."""
         result = _build_intent_context(None, {"layout": "not a list"})
-        assert isinstance(result, str)
+        assert "Layout" not in result
+
+    def test_actions_as_dict_ignored(self):
+        result = _build_intent_context(None, {"actions": {"step": 1}})
+        assert "Actions" not in result
+
+    def test_layout_with_non_dict_items(self):
+        """Layout items that aren't dicts should not appear in shape preview."""
+        ir = {"layout": [{"shape": "array"}, "bad_item", 42]}
+        result = _build_intent_context(None, ir)
+        assert "Layout: 3 elements" in result
+        assert "array" in result
 
 
 class TestBuildAttemptHistoryContext:

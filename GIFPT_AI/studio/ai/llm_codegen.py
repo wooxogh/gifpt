@@ -638,12 +638,18 @@ def _build_intent_context(
                 parts.append(f"Topic: {title}")
         layout = anim_ir.get("layout", [])
         actions = anim_ir.get("actions", [])
-        if layout:
+        if isinstance(layout, list) and layout:
             shapes = [item.get("shape", "?") for item in layout[:6] if isinstance(item, dict)]
-            parts.append(f"Layout: {len(layout)} elements ({', '.join(shapes)})")
-        if actions:
+            layout_line = f"Layout: {len(layout)} elements"
+            if shapes:
+                layout_line += f" ({', '.join(shapes)})"
+            parts.append(layout_line)
+        if isinstance(actions, list) and actions:
             anims = [act.get("animation", "?") for act in actions[:6] if isinstance(act, dict)]
-            parts.append(f"Actions: {len(actions)} steps ({', '.join(anims)})")
+            actions_line = f"Actions: {len(actions)} steps"
+            if anims:
+                actions_line += f" ({', '.join(anims)})"
+            parts.append(actions_line)
     return "\n".join(parts)
 
 
