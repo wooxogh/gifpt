@@ -16,10 +16,6 @@ sys.path.insert(0, str(_ROOT))
 
 # Mock all studio dependencies that video_render imports at module level
 _mocks = {
-    "studio.ai.llm_domain": MagicMock(),
-    "studio.ai.llm": MagicMock(),
-    "studio.ai.render_cnn_matrix": MagicMock(),
-    "studio.ai.render_sorting": MagicMock(),
     "openai": MagicMock(),
     "dotenv": MagicMock(),
     "fitz": MagicMock(),
