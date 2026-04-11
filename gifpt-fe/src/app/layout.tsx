@@ -1,5 +1,6 @@
 import { Manrope, Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { getLocale } from 'next-intl/server'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const manrope = Manrope({ variable: '--font-manrope', subsets: ['latin'], display: 'swap' })
@@ -23,6 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-full flex flex-col" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
         {children}
+        <Analytics />
       </body>
     </html>
   )
