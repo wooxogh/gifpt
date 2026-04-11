@@ -1,4 +1,5 @@
 # video_render.py
+import ast
 import os
 import time
 import tempfile
@@ -52,6 +53,92 @@ def validate_manim_code_basic(code: str):
     # 매우 단순한 괄호 체크
     if code.count('(') < code.count(')') or code.count('[') < code.count(']'):
         issues.append({"error_type": "syntax", "message": "possible unmatched bracket"})
+
+    return issues
+
+
+# ── AST-based deep validation ────────────────────────────────────────────────
+
+# Names that cause Manim CE 0.19.0 render failures
+FORBIDDEN_NAMES = frozenset({
+    # LaTeX-dependent (Manim CE Text-only constraint)
+    "Matrix", "IntegerTable", "MathTex", "Tex", "MobjectTable",
+    # Unavailable line/arrow variants
+    "DashedLine", "DashedArrow", "CurvedArrow", "ArcBetweenPoints", "TracedPath",
+    # LLM-hallucinated classes
+    "Highlight", "Focus", "Emphasize",
+    "AddPointToGraph", "PlotPoint", "CreateGraph",
+    "AnimateCurvePoint", "DrawArrowBetween", "ShowValueOnPlot",
+})
+
+# Attribute calls that crash at runtime
+FORBIDDEN_ATTRS = frozenset({
+    "deepcopy",   # Mobject.deepcopy() — use .copy()
+    "set_text",   # Text.set_text() — create new Text + Transform
+})
+
+# Camera access pattern — Scene has no .frame attribute
+FORBIDDEN_CAMERA_ATTRS = frozenset({"frame"})
+
+
+def validate_manim_code_ast(code: str) -> list[dict]:
+    """Deep AST-level validation of LLM-generated Manim code.
+
+    Catches issues that regex-based validate_manim_code_basic misses:
+    - Forbidden class instantiation (Matrix, DashedLine, etc.)
+    - Forbidden method calls (.deepcopy(), .set_text())
+    - self.camera.frame access
+    - Syntax errors that would crash the subprocess
+
+    Returns a list of issue dicts (empty = code is clean).
+    """
+    issues: list[dict] = []
+
+    # Step 1: Syntax check — can Python parse it at all?
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        issues.append({
+            "error_type": "syntax",
+            "message": f"SyntaxError at line {e.lineno}: {e.msg}",
+            "line": e.lineno,
+        })
+        return issues  # can't walk a broken AST
+
+    for node in ast.walk(tree):
+        # Step 2: Forbidden class/function usage — e.g. Matrix(...), DashedLine(...)
+        if isinstance(node, ast.Call):
+            func = node.func
+            # Direct name calls: Matrix(), DashedLine(), etc.
+            if isinstance(func, ast.Name) and func.id in FORBIDDEN_NAMES:
+                issues.append({
+                    "error_type": "forbidden_api",
+                    "message": f"Forbidden API '{func.id}' at line {func.lineno} — not available in Manim CE 0.19.0",
+                    "line": func.lineno,
+                })
+
+        # Step 3: Forbidden attribute access — .deepcopy(), .set_text()
+        if isinstance(node, ast.Attribute):
+            if node.attr in FORBIDDEN_ATTRS:
+                replacement = ".copy()" if node.attr == "deepcopy" else "new Text + Transform"
+                issues.append({
+                    "error_type": "forbidden_method",
+                    "message": f"'.{node.attr}()' at line {node.lineno} — use {replacement} instead",
+                    "line": node.lineno,
+                })
+
+            # Step 4: self.camera.frame access
+            if node.attr in FORBIDDEN_CAMERA_ATTRS:
+                # Check if it's self.camera.frame
+                if (isinstance(node.value, ast.Attribute)
+                        and node.value.attr == "camera"
+                        and isinstance(node.value.value, ast.Name)
+                        and node.value.value.id == "self"):
+                    issues.append({
+                        "error_type": "forbidden_api",
+                        "message": f"'self.camera.frame' at line {node.lineno} — Scene camera has no frame attribute",
+                        "line": node.lineno,
+                    })
 
     return issues
 
@@ -291,11 +378,16 @@ def render_video_from_instructions(instructions: str) -> str:
                 code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
 
             issues = validate_manim_code_basic(code_try)
+            ast_issues = validate_manim_code_ast(code_try)
+            all_issues = issues + ast_issues
             dur = time.perf_counter() - start
 
-            if issues:
-                logger.warning("[CodeGen] attempt %d/%d static issues (%d) %.2fs",
-                               attempt, max_codegen_attempts, len(issues), dur)
+            if all_issues:
+                logger.warning("[CodeGen] attempt %d/%d static issues (%d) ast issues (%d) %.2fs",
+                               attempt, max_codegen_attempts, len(issues), len(ast_issues), dur)
+                if ast_issues:
+                    logger.warning("[CodeGen] AST issues: %s",
+                                   [i["message"] for i in ast_issues[:5]])
                 manim_code = code_try
                 if attempt < max_codegen_attempts:
                     continue
