@@ -3,6 +3,8 @@ import os, json
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from studio.ai._tracing import traceable
+
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -114,6 +116,7 @@ def _extract_usage(usage_obj):
     return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": tt}
 
 
+@traceable(name="pseudo_ir", run_type="chain")
 def call_llm_pseudocode_ir_with_usage(user_text: str):
     prompt = build_prompt_pseudocode(user_text)
     resp = client.chat.completions.create(
