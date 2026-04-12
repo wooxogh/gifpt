@@ -4,10 +4,12 @@ Usage (from GIFPT_AI/):
     python -m scripts.upload_goldset
     python -m scripts.upload_goldset --name gifpt-goldset-v0 --dry-run
 
-Requires these env vars (see LangSmith project settings):
+Required env vars (see LangSmith project settings):
     LANGSMITH_API_KEY
-    LANGSMITH_TRACING=true        (enables the client)
+
+Optional env vars:
     LANGSMITH_ENDPOINT            (defaults to https://api.smith.langchain.com)
+    LANGSMITH_TRACING=true        (only needed for run tracing, not dataset upload)
 
 The dataset is keyed by `tag`; re-running replaces existing examples rather
 than duplicating them.
@@ -45,6 +47,30 @@ def load_seed_examples(path: Path) -> list[dict]:
     return examples
 
 
+def validate_tags(examples: list[dict]) -> None:
+    """Fail fast if any example is missing a tag or tags collide.
+
+    Tags are the idempotency key for re-uploads; a missing or duplicated tag
+    would cause every run to create new examples instead of updating the
+    existing ones.
+    """
+    seen: dict[str, int] = {}
+    for idx, ex in enumerate(examples, start=1):
+        tag = ex.get("tag")
+        if not isinstance(tag, str) or not tag.strip():
+            raise SystemExit(
+                f"Example #{idx} is missing a non-empty 'tag' field "
+                f"(required for idempotent upload)."
+            )
+        tag = tag.strip()
+        if tag in seen:
+            raise SystemExit(
+                f"Duplicate tag '{tag}' on examples #{seen[tag]} and #{idx}. "
+                f"Tags must be unique within the seed file."
+            )
+        seen[tag] = idx
+
+
 def example_to_dataset_pair(ex: dict) -> tuple[dict, dict, dict]:
     """Return (inputs, outputs, metadata) for LangSmith."""
     inputs = {
@@ -77,6 +103,7 @@ def main() -> int:
         return 1
 
     examples = load_seed_examples(seed_path)
+    validate_tags(examples)
     print(f"Loaded {len(examples)} seed examples from {seed_path}")
 
     if args.dry_run:
