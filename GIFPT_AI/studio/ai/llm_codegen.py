@@ -125,6 +125,20 @@ REFERENCE_PATH = BASE_DIR / "render_cnn_matrix.py"
 with open(REFERENCE_PATH, "r", encoding="utf-8") as f:
     CNN_REFERENCE = f.read()
 
+# Manim CE 0.19.0 API reference — injected verbatim into codegen prompts so
+# the LLM sees exact signatures instead of hallucinating APIs. Required at
+# import time: a missing or empty file would silently strip the API grounding
+# from prompts, so we fail fast instead of falling back to an empty string.
+MANIM_API_REF_PATH = BASE_DIR / "manim_api_ref.md"
+
+with open(MANIM_API_REF_PATH, "r", encoding="utf-8") as f:
+    MANIM_API_REFERENCE = f.read().strip()
+
+if not MANIM_API_REFERENCE:
+    raise RuntimeError(
+        f"Manim API reference file is empty: {MANIM_API_REF_PATH}"
+    )
+
 SYSTEM_PROMPT = f"""
 You are a Manim code generator.
 You will receive a structured animation IR (entities, layout, actions)
@@ -222,6 +236,13 @@ SAFE BOUNDS — all content must stay within these coordinates:
   If placing N elements horizontally, each element width ≤ 13.0 / N.
   If placing N elements vertically, each element height ≤ 7.0 / N.
   Always verify your layout arithmetic stays in bounds before coding.
+
+MANIM CE 0.19.0 API REFERENCE (these are the EXACT signatures — do not
+invent method names, kwargs, or classes not listed here):
+
+<manim_api_reference>
+{MANIM_API_REFERENCE}
+</manim_api_reference>
 
 MANIM CE 0.19.0 API CONSTRAINTS (violating these causes render failures):
 - NO LaTeX: Never use Matrix, IntegerTable, MathTex, or Tex. Use only Text() for
@@ -544,6 +565,12 @@ CODE RULES:
 - DO NOT invent custom helper functions not in Manim
 - Class: AlgorithmScene(Scene) with construct(self)
 - Output ONLY valid Python code (no markdown, no trailing prose)
+
+MANIM CE 0.19.0 API REFERENCE (exact signatures — do not invent methods):
+
+<manim_api_reference>
+{MANIM_API_REFERENCE}
+</manim_api_reference>
 
 MANIM CE 0.19.0 API CONSTRAINTS:
 - NO LaTeX: Never use Matrix, IntegerTable, MathTex, or Tex. Use Text() only.

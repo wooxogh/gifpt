@@ -20,6 +20,10 @@ Allowed domains:
 - "graph_traversal"
 - "dynamic_programming"
 - "math"
+- "tree"
+- "linked_list"
+- "stack"
+- "queue"
 - "generic"
 
 Classification rules:
@@ -34,6 +38,11 @@ Classification rules:
 - If mentions: hash table, hash map, bucket, chaining, collision, hash function → "hash_table"
 - If mentions: BFS, DFS, graph, traversal, queue, stack, visited → "graph_traversal"
 - If mentions: binary search, linear search, search algorithm, 이진 탐색, 탐색 과정 → "generic"
+- If mentions: BST, binary search tree, AVL, red-black tree, tree insert, tree traversal (inorder, preorder, postorder), heap, heapify, priority queue (tree-based) → "tree"
+- If mentions: linked list, singly linked, doubly linked, node pointer, head/tail pointer → "linked_list"
+- If mentions: stack, push/pop, LIFO, call stack, undo/redo stack → "stack"
+- If mentions: queue, enqueue/dequeue, FIFO, circular queue, deque (but NOT priority queue) → "queue"
+  * NOTE: priority queue implemented as heap → "tree"
 - If mentions: dynamic programming, DP, fibonacci, memoization, subproblems → "dynamic_programming"
 - If mentions: derivatives, integrals, probability, expectation, variance, matrices → "math"
 - Otherwise → "generic"

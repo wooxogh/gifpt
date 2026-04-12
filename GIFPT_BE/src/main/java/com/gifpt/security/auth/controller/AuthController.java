@@ -15,7 +15,6 @@ import com.gifpt.security.auth.service.RefreshTokenService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.Nullable;
 import java.util.Map;
-import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -55,11 +54,7 @@ public class AuthController {
     u.setPasswordHash(encoder.encode(req.password()));
     userRepo.save(u);
 
-    Map<String, Object> claims = new HashMap<>();
-    claims.put("role", "USER");
-
-    // 2. HashMap을 토큰 생성에 사용
-    String access = jwtService.generateToken(u.getEmail(), claims);
+    String access = jwtService.generateAccessToken(u.getId(), u.getEmail(), u.getStatus(), "USER");
     String refresh = refreshService.issue(u, 7);
 
     ResponseCookie cookie = ResponseCookie.from("refreshToken", refresh)
@@ -71,7 +66,10 @@ public class AuthController {
         .build();
     res.addHeader("Set-Cookie", cookie.toString());
 
-    return ResponseEntity.ok(Map.of("accessToken", access));
+    return ResponseEntity.ok(Map.of(
+        "accessToken", access,
+        "user", Map.of("email", u.getEmail())
+    ));
   }
 
   @PostMapping("/login")
@@ -81,9 +79,7 @@ public class AuthController {
     );
     String email = auth.getName();
     User user = userRepo.findByEmail(email).orElseThrow();
-    Map<String, Object> claims = new HashMap<>();
-    claims.put("role", "USER");
-    String access = jwtService.generateToken(user.getEmail(), claims);
+    String access = jwtService.generateAccessToken(user.getId(), user.getEmail(), user.getStatus(), "USER");
     String refresh = refreshService.issue(user, 7);
 
     ResponseCookie cookie = ResponseCookie.from("refreshToken", refresh)
@@ -96,9 +92,9 @@ public class AuthController {
     res.addHeader("Set-Cookie", cookie.toString());
 
     return ResponseEntity.ok(Map.of(
-        "accessToken", access
-      )
-    );
+        "accessToken", access,
+        "user", Map.of("email", user.getEmail())
+    ));
   }
 
   @PostMapping("/logout")

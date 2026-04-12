@@ -23,6 +23,7 @@ from studio.ai.llm_codegen import (  # noqa: E402
     _build_attempt_history_context,
     call_llm_codegen_fix,
     call_llm_codegen_with_qa_feedback,
+    MANIM_API_REFERENCE,
     SYSTEM_PROMPT,
     PEDAGOGICAL_RULES_FULL,
     PEDAGOGICAL_RULES_CONDENSED,
@@ -288,3 +289,37 @@ class TestSharedConstants:
         assert MODEL_PRIMARY
         assert MODEL_FAST
         assert MODEL_PRIMARY != MODEL_FAST
+
+
+class TestManimApiReferenceInjection:
+    """Verify the Manim CE 0.19.0 API reference is loaded and injected into prompts."""
+
+    def test_api_reference_loaded(self):
+        """The ref file should be loaded at module import time."""
+        assert MANIM_API_REFERENCE, "MANIM_API_REFERENCE is empty — file missing?"
+        assert "Manim CE 0.19.0" in MANIM_API_REFERENCE
+
+    def test_api_reference_has_exact_signatures(self):
+        """Verify the ref contains exact Manim signatures the LLM can cite."""
+        # Sample a few signatures that should appear verbatim
+        assert "Rectangle(color=WHITE" in MANIM_API_REFERENCE
+        assert "SurroundingRectangle(*mobjects" in MANIM_API_REFERENCE
+        assert "FadeIn" in MANIM_API_REFERENCE
+        # Forbidden section
+        assert ".deepcopy()" in MANIM_API_REFERENCE
+        assert "DashedLine" in MANIM_API_REFERENCE
+
+    def test_system_prompt_injects_api_reference(self):
+        """SYSTEM_PROMPT should contain the full API reference in a tagged block."""
+        assert "<manim_api_reference>" in SYSTEM_PROMPT
+        assert "</manim_api_reference>" in SYSTEM_PROMPT
+        # Actual signature content, not just the tag
+        assert "Rectangle(color=WHITE" in SYSTEM_PROMPT
+        assert "SurroundingRectangle(*mobjects" in SYSTEM_PROMPT
+
+    def test_few_shot_prompt_injects_api_reference(self):
+        """Few-shot prompt should also inject the API reference."""
+        prompt = _build_few_shot_system_prompt([])
+        assert "<manim_api_reference>" in prompt
+        assert "Rectangle(color=WHITE" in prompt
+        assert "FadeIn" in prompt
