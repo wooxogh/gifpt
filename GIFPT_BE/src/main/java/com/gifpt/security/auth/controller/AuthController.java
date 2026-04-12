@@ -54,7 +54,7 @@ public class AuthController {
     u.setPasswordHash(encoder.encode(req.password()));
     userRepo.save(u);
 
-    String access = jwtService.generateAccessToken(u.getId(), u.getEmail(), "USER");
+    String access = jwtService.generateAccessToken(u.getId(), u.getEmail(), u.getStatus(), "USER");
     String refresh = refreshService.issue(u, 7);
 
     ResponseCookie cookie = ResponseCookie.from("refreshToken", refresh)
@@ -79,7 +79,7 @@ public class AuthController {
     );
     String email = auth.getName();
     User user = userRepo.findByEmail(email).orElseThrow();
-    String access = jwtService.generateAccessToken(user.getId(), user.getEmail(), "USER");
+    String access = jwtService.generateAccessToken(user.getId(), user.getEmail(), user.getStatus(), "USER");
     String refresh = refreshService.issue(user, 7);
 
     ResponseCookie cookie = ResponseCookie.from("refreshToken", refresh)

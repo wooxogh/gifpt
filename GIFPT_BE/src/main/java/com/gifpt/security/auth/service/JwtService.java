@@ -18,6 +18,8 @@ public class JwtService {
 
   public static final String CLAIM_USER_ID = "uid";
   public static final String CLAIM_ROLE = "role";
+  public static final String CLAIM_STATUS = "status";
+  public static final String STATUS_ACTIVE = "ACTIVE";
 
   private final SecretKey key;
   private final long expiresInMs;
@@ -31,12 +33,18 @@ public class JwtService {
   }
 
   /**
-   * Generate an access token carrying the user's id and role so downstream
-   * filters can authenticate without a database round-trip.
+   * Generate an access token carrying the user's id, status, and role so
+   * downstream filters can authenticate (and gate disabled accounts) without
+   * a database round-trip.
+   *
+   * Status freshness caveat: a status change after token issuance only takes
+   * effect once the token expires. Tighten {@code gifpt.jwt.expires-in-ms} or
+   * add a revocation list if shorter lockout is required.
    */
-  public String generateAccessToken(Long userId, String email, String role) {
+  public String generateAccessToken(Long userId, String email, String status, String role) {
     Map<String, Object> claims = new HashMap<>();
     claims.put(CLAIM_USER_ID, userId);
+    claims.put(CLAIM_STATUS, status);
     claims.put(CLAIM_ROLE, role);
     long now = System.currentTimeMillis();
     return Jwts.builder()

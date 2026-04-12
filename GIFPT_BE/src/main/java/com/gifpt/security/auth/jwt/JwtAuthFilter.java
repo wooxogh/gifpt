@@ -39,8 +39,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (claims != null) {
           String email = claims.getSubject();
           Number uidClaim = claims.get(JwtService.CLAIM_USER_ID, Number.class);
-          if (email != null && uidClaim != null) {
-            CustomUserPrincipal principal = CustomUserPrincipal.fromTokenClaims(uidClaim.longValue(), email);
+          String status = claims.get(JwtService.CLAIM_STATUS, String.class);
+          // Reject tokens that lack required claims or were issued for a
+          // non-active account. Status freshness is bounded by token TTL —
+          // see JwtService#generateAccessToken for the trade-off rationale.
+          if (email != null && uidClaim != null && JwtService.STATUS_ACTIVE.equals(status)) {
+            CustomUserPrincipal principal = CustomUserPrincipal.fromTokenClaims(uidClaim.longValue(), email, status);
             var authToken = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(req));
             SecurityContextHolder.getContext().setAuthentication(authToken);

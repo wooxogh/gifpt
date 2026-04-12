@@ -126,14 +126,18 @@ with open(REFERENCE_PATH, "r", encoding="utf-8") as f:
     CNN_REFERENCE = f.read()
 
 # Manim CE 0.19.0 API reference — injected verbatim into codegen prompts so
-# the LLM sees exact signatures instead of hallucinating APIs.
+# the LLM sees exact signatures instead of hallucinating APIs. Required at
+# import time: a missing or empty file would silently strip the API grounding
+# from prompts, so we fail fast instead of falling back to an empty string.
 MANIM_API_REF_PATH = BASE_DIR / "manim_api_ref.md"
 
-try:
-    with open(MANIM_API_REF_PATH, "r", encoding="utf-8") as f:
-        MANIM_API_REFERENCE = f.read().strip()
-except FileNotFoundError:
-    MANIM_API_REFERENCE = ""
+with open(MANIM_API_REF_PATH, "r", encoding="utf-8") as f:
+    MANIM_API_REFERENCE = f.read().strip()
+
+if not MANIM_API_REFERENCE:
+    raise RuntimeError(
+        f"Manim API reference file is empty: {MANIM_API_REF_PATH}"
+    )
 
 SYSTEM_PROMPT = f"""
 You are a Manim code generator.
