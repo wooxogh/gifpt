@@ -76,11 +76,33 @@ def build_target_fn(*, render: bool = True, run_qa: bool = True):
     The returned function takes the example's `inputs` dict (which
     `upload_goldset.py` defines as `{description, algorithm}`) and
     returns the full stage-capture dict.
+
+    When `render=True`, every call wraps `run_pipeline_capture` in a
+    `tempfile.TemporaryDirectory` so rendered mp4s are deleted after
+    Vision QA has consumed them. Without this, a full 16-example
+    baseline would leak 16 `gifpt_eval_*` dirs under /tmp.
     """
+    import tempfile
+    from pathlib import Path
+
     from studio.evaluators.pipeline_capture import run_pipeline_capture
 
     def target(inputs: dict) -> dict:
         description = (inputs or {}).get("description") or (inputs or {}).get("algorithm") or ""
-        return run_pipeline_capture(description, render=render, run_qa=run_qa)
+        if not render:
+            return run_pipeline_capture(description, render=False, run_qa=False)
+
+        with tempfile.TemporaryDirectory(prefix="gifpt_eval_") as tmpdir:
+            # Vision QA reads the mp4 inside run_pipeline_capture, so by
+            # the time we return the capture dict the file is consumed.
+            # The tmp dir is cleaned when the context exits — the video
+            # path stays in the dict as a "render succeeded" signal but
+            # is no longer a valid filesystem path.
+            return run_pipeline_capture(
+                description,
+                render=True,
+                run_qa=run_qa,
+                output_dir=Path(tmpdir),
+            )
 
     return target

@@ -41,7 +41,15 @@ if str(_GIFPT_AI) not in sys.path:
 def _run_offline() -> int:
     """Minimal smoke test: run all 4 evaluators on a hand-built fixture capture
     and print the scores. Zero LLM cost, zero LangSmith dependency.
+
+    Stubs optional third-party deps (openai, dotenv, langsmith) so this
+    runs in a bare Python environment. If they're already installed,
+    setdefault is a no-op and the real modules are used.
     """
+    from unittest.mock import MagicMock
+    for mod in ("openai", "dotenv", "langsmith"):
+        sys.modules.setdefault(mod, MagicMock())
+
     from studio.evaluators.langsmith_adapter import (
         anim_codegen_evaluator,
         codegen_render_evaluator,

@@ -45,7 +45,12 @@ def run_pipeline_capture(
         render: If False, skip the Manim render step (and QA). Useful
             for cheap runs that only measure the 2 LLM edges.
         run_qa: If False, skip Vision QA even when render succeeds.
-        output_dir: Where to write rendered mp4. Defaults to a temp dir.
+        output_dir: Required when `render=True`. Caller owns the
+            lifecycle of this directory — in LangSmith batch runs the
+            wrapper in `langsmith_adapter.build_target_fn` creates and
+            cleans up a TemporaryDirectory per example so rendered mp4s
+            don't leak across long baseline runs. When render=False,
+            this argument is ignored.
     """
     from studio.ai.llm_pseudocode import call_llm_pseudocode_ir_with_usage
     from studio.ai.llm_anim_ir import call_llm_anim_ir_with_usage
@@ -110,8 +115,9 @@ def run_pipeline_capture(
     from studio.video_render import run_manim_code, ManimRenderError, classify_runtime_error
 
     if output_dir is None:
-        import tempfile
-        output_dir = Path(tempfile.mkdtemp(prefix="gifpt_eval_"))
+        capture["stage_errors"]["render"] = "output_dir_required"
+        capture["render_result"]["error_type"] = "output_dir_required"
+        return capture
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_name = f"capture_{int(time.time() * 1000)}.mp4"

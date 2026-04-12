@@ -56,30 +56,40 @@ def render_qa_preservation(
     failed_checks: list[str] = []
     domain_checks = qa_result.get("domain_checks")
 
-    if domain and isinstance(domain_checks, dict):
-        if domain_qa_config is None:
-            try:
-                from studio.ai.qa import DOMAIN_QA_CONFIG
-                domain_qa_config = DOMAIN_QA_CONFIG
-            except Exception:
-                domain_qa_config = {}
+    if domain:
+        # Domain is known → we must be able to audit the required checks.
+        # If QA didn't report a domain_checks dict, that's edge loss in
+        # itself (QA stage couldn't confirm the intent was preserved).
+        if not isinstance(domain_checks, dict):
+            missing.append("qa_result:no_domain_checks")
+        else:
+            if domain_qa_config is None:
+                try:
+                    from studio.ai.qa import DOMAIN_QA_CONFIG
+                    domain_qa_config = DOMAIN_QA_CONFIG
+                except Exception:
+                    domain_qa_config = {}
 
-        config = (domain_qa_config or {}).get(domain)
-        required = (config or {}).get("required_checks", []) if isinstance(config, dict) else []
+            config = (domain_qa_config or {}).get(domain)
+            required = (
+                (config or {}).get("required_checks", [])
+                if isinstance(config, dict)
+                else []
+            )
 
-        for check in required:
-            if not isinstance(check, dict):
-                continue
-            key = check.get("key")
-            if not isinstance(key, str) or not key:
-                continue
-            value = domain_checks.get(key)
-            if value is False:
-                failed_checks.append(key)
-                missing.append(f"domain_check:{domain}.{key}")
-            elif value is None:
-                failed_checks.append(f"{key}(missing)")
-                missing.append(f"domain_check:{domain}.{key}(missing)")
+            for check in required:
+                if not isinstance(check, dict):
+                    continue
+                key = check.get("key")
+                if not isinstance(key, str) or not key:
+                    continue
+                value = domain_checks.get(key)
+                if value is False:
+                    failed_checks.append(key)
+                    missing.append(f"domain_check:{domain}.{key}")
+                elif value is None:
+                    failed_checks.append(f"{key}(missing)")
+                    missing.append(f"domain_check:{domain}.{key}(missing)")
 
     extra: dict[str, Any] = {
         "score": score_val,

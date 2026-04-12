@@ -38,12 +38,19 @@ def codegen_render_preservation(
     """
     missing: list[str] = []
 
-    # AST-level barriers first — these map 1:1 to production failures
+    # AST-level barriers first — these map 1:1 to production failures.
+    # If the validator itself fails to load or run, we CANNOT grant a green
+    # score: the AST safety gate never actually executed, so there's no
+    # evidence the code is clean. Record the evaluator failure in `missing`
+    # so the edge score is forced to 0.
     try:
         from studio.video_render import validate_manim_code_ast
         ast_issues = validate_manim_code_ast(manim_code or "")
+        validator_available = True
     except Exception as exc:
         ast_issues = [{"error_type": "evaluator_error", "message": str(exc)}]
+        validator_available = False
+        missing.append("ast:evaluator_error")
 
     forbidden_ast: list[str] = []
     for issue in ast_issues:
@@ -80,6 +87,7 @@ def codegen_render_preservation(
         "duration_s": duration_s,
         "error_type": error_type,
         "budget_ok": budget_ok,
+        "validator_available": validator_available,
     }
 
     score = 1 if not missing else 0

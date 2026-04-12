@@ -74,10 +74,7 @@ def pseudo_anim_preservation(pseudo_ir: dict, anim_ir: dict) -> EdgeEvalResult:
         if not isinstance(subject, str) or not subject:
             continue
         pseudo_subjects_seen.append(subject)
-        if subject not in anim_targets and subject not in anim_entities:
-            # Subject isn't referenced by any action AND isn't in layout either —
-            # fully orphaned. If it's in layout but no action references it, we
-            # still accept (static element is a valid animation plan).
+        if subject not in anim_targets:
             action = op.get("action") or "?"
             missing.append(f"operation:{subject}/{action}")
 

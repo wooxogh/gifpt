@@ -83,3 +83,26 @@ def test_missing_video_path_fails():
     result = codegen_render_preservation(CODE_CLEAN, render_result)
     assert result.score == 0
     assert "render:no_output_path" in result.missing
+
+
+def test_validator_exception_forces_fail(monkeypatch):
+    """Regression: if validate_manim_code_ast is unavailable or crashes,
+    the evaluator must NOT grant a green score — the AST safety gate
+    never ran, so there's no evidence the code was clean."""
+    import studio.video_render as vr
+
+    def _broken_validator(code):
+        raise RuntimeError("validator offline")
+
+    monkeypatch.setattr(vr, "validate_manim_code_ast", _broken_validator)
+
+    render_result = {
+        "success": True,
+        "duration_s": 5.0,
+        "error_type": None,
+        "video_path": "/tmp/ok.mp4",
+    }
+    result = codegen_render_preservation(CODE_CLEAN, render_result)
+    assert result.score == 0
+    assert "ast:evaluator_error" in result.missing
+    assert result.extra["validator_available"] is False

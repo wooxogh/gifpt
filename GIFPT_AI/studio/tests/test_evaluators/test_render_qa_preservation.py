@@ -101,3 +101,31 @@ def test_non_dict_qa_result_fails():
     result = render_qa_preservation(None)  # type: ignore[arg-type]
     assert result.score == 0
     assert "qa_result:not_a_dict" in result.missing
+
+
+def test_missing_domain_checks_with_known_domain_fails():
+    """Regression: when QA reports passed=True but omits domain_checks,
+    the edge must still fail — we can't confirm intent was preserved."""
+    qa_result = {
+        "score": 7.0,
+        "threshold": 5.0,
+        "passed": True,
+        "issues": [],
+    }
+    result = render_qa_preservation(
+        qa_result, domain="sorting", domain_qa_config=FAKE_DOMAIN_CONFIG
+    )
+    assert result.score == 0
+    assert "qa_result:no_domain_checks" in result.missing
+
+
+def test_passing_qa_without_domain_is_lenient():
+    """When no domain is specified, absence of domain_checks is fine."""
+    qa_result = {
+        "score": 7.0,
+        "threshold": 5.0,
+        "passed": True,
+        "issues": [],
+    }
+    result = render_qa_preservation(qa_result, domain=None)
+    assert result.score == 1
