@@ -15,7 +15,9 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-export async function apiLogin(email: string, password: string): Promise<string> {
+export type AuthResponse = { accessToken: string; user: { email: string } }
+
+export async function apiLogin(email: string, password: string): Promise<AuthResponse> {
   const res = await fetch('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -26,11 +28,10 @@ export async function apiLogin(email: string, password: string): Promise<string>
     const data = await res.json().catch(() => ({}))
     throw new Error(data.error ?? 'login_failed')
   }
-  const data = await res.json()
-  return data.accessToken
+  return res.json()
 }
 
-export async function apiSignup(email: string, password: string): Promise<string> {
+export async function apiSignup(email: string, password: string): Promise<AuthResponse> {
   const res = await fetch('/api/v1/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,8 +42,7 @@ export async function apiSignup(email: string, password: string): Promise<string
     const data = await res.json().catch(() => ({}))
     throw new Error(data.error ?? 'signup_failed')
   }
-  const data = await res.json()
-  return data.accessToken
+  return res.json()
 }
 
 export async function apiLogout(): Promise<void> {

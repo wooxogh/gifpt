@@ -18,6 +18,21 @@ public class CustomUserPrincipal implements UserDetails {
         this.user = user;
     }
 
+    /**
+     * Build a lightweight principal from JWT claims, skipping the database
+     * round-trip. The returned User entity is transient (not managed) and only
+     * carries the fields needed by downstream controllers (id, email).
+     */
+    public static CustomUserPrincipal fromTokenClaims(Long userId, String email) {
+        User stub = new User();
+        stub.setId(userId);
+        stub.setEmail(email);
+        // status defaults to "ACTIVE" on the entity; passwordHash is unused
+        // post-login (auth uses the JWT signature, not the password).
+        stub.setPasswordHash("");
+        return new CustomUserPrincipal(stub);
+    }
+
     public Long getId() {
         return user.getId();
     }

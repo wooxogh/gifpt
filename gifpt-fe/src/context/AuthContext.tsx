@@ -41,17 +41,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    const token = await apiLogin(email, password)
-    setToken(token)
-    const me = await apiMe(token)
-    setAuth({ status: 'authenticated', email: me.email, token })
+    const { accessToken, user } = await apiLogin(email, password)
+    setToken(accessToken)
+    setAuth({ status: 'authenticated', email: user.email, token: accessToken })
   }, [])
 
   const signup = useCallback(async (email: string, password: string) => {
-    const token = await apiSignup(email, password)
-    setToken(token)
-    const me = await apiMe(token)
-    setAuth({ status: 'authenticated', email: me.email, token })
+    const { accessToken, user } = await apiSignup(email, password)
+    setToken(accessToken)
+    setAuth({ status: 'authenticated', email: user.email, token: accessToken })
   }, [])
 
   const logout = useCallback(async () => {
