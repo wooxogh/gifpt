@@ -4,6 +4,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
 
+from studio.ai._tracing import traceable
+
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -801,6 +803,7 @@ def call_llm_codegen(anim_ir: dict):
     return post_process_manim_code(code)
 
 
+@traceable(name="codegen", run_type="chain")
 def call_llm_codegen_with_usage(anim_ir: dict):
     prompt = build_prompt_codegen(anim_ir)
     resp = client.chat.completions.create(

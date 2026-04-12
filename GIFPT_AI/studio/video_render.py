@@ -13,6 +13,7 @@ from studio.ai.qa import (
     validate_pseudocode_ir_deep, validate_anim_ir_deep,
     vision_qa,
 )
+from studio.ai._tracing import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +231,7 @@ def _render_manim_once(code: str, output_dir: Path, output_name: str, timeout: i
     return None
 
 
+@traceable(name="render", run_type="tool")
 def run_manim_code(code: str, output_dir: Path, output_name: str | None = None) -> str:
     """Render Manim code — returns video path on success, raises ManimRenderError on failure.
 

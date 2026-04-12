@@ -19,6 +19,8 @@ from typing import Optional
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from openai import OpenAI
 
+from studio.ai._tracing import traceable
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -451,6 +453,7 @@ def extract_frames(video_path: str, num_frames: int = 4) -> list[str]:
     return frames
 
 
+@traceable(name="qa", run_type="chain")
 def vision_qa(
     video_path: str,
     algorithm_description: str,

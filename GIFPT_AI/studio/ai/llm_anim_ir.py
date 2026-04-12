@@ -3,6 +3,8 @@ import os, json
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from studio.ai._tracing import traceable
+
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -85,6 +87,7 @@ def call_llm_anim_ir(pseudocode_json: dict):
     )
     return json.loads(resp.choices[0].message.content)
 
+@traceable(name="anim_ir", run_type="chain")
 def call_llm_anim_ir_with_usage(pseudocode_json: dict):
     prompt = build_prompt_anim_ir(pseudocode_json)
     resp = client.chat.completions.create(
