@@ -1,84 +1,105 @@
 # GIFPT
 
-**PDF 기반 학습 자료를 AI로 분석하여 요약과 Manim 애니메이션 영상을 자동 생성하는 서비스**
+**알고리즘 이름 한 줄로 Manim 애니메이션을 생성하는 서비스**
+
+사용자가 보고 싶은 알고리즘(예: `bubble sort`, `cnn filter`)을 입력하면, 캐시에 없을 경우 LLM이 Pseudocode → Animation IR → Manim 코드를 생성하고 렌더링하여 MP4로 반환합니다.
 
 ---
 
-## 서비스 개요
+## 모노레포 구조
 
-사용자가 PDF를 업로드하면:
-1. GPT-4o Vision이 PDF 페이지를 읽고 핵심 개념과 예시를 요약
-2. 알고리즘/모델 유형에 맞게 Manim 애니메이션 영상을 자동 생성
-3. 생성된 영상과 요약을 워크스페이스에서 확인하고, AI 챗봇으로 추가 질문 가능
+```
+gifpt/
+├── gifpt-fe/         # Next.js 16 프런트엔드 (Vercel 배포)
+├── GIFPT_BE/         # Spring Boot 3.5 백엔드 (Java 17)
+├── GIFPT_AI/         # Django + Celery AI 워커 (Python)
+├── nginx/            # Reverse proxy 설정
+├── docker-compose.yml
+├── DESIGN.md         # 디자인 시스템 스펙
+└── CLAUDE.md         # Claude Code용 가이드
+```
 
 ---
 
 ## 시스템 아키텍처
 
 ```
-[Client]
+[Browser]
     │
     ▼
-[Nginx :80]          ← Reverse Proxy
-    │
-    ▼
-[Spring Boot :8080]  ← REST API, JWT 인증, 워크스페이스 관리
-    │
-    ├─ POST /analyze ──────────────────────────▶ [Django :8000]
-    │                                                  │
-    │                                          Celery Task 큐
-    │                                                  │
-    │                                                  ▼
-    │                                          [Celery Worker]
-    │                                           PDF → Vision → Manim → S3
-    │                                                  │
-    └─ POST /api/v1/analysis/{jobId}/complete ◀────────┘
+[Next.js (Vercel)] ── rewrites ──▶ [Nginx :80 (EC2)]
+                                        │
+                                        ▼
+                                   [Spring Boot :8080]
+                                   JWT 인증, /animate 캐시 조회, 갤러리
+                                        │
+                                        │ 캐시 MISS + 인증됨 → 작업 큐잉
+                                        ▼
+                                   [Django :8000] ──enqueue──▶ [Celery Worker]
+                                                                    │
+                                                                    ▼
+                                                       LLM → Manim 렌더 → S3 업로드
+                                                                    │
+                    [Spring] ◀── POST /api/v1/analysis/{jobId}/complete
 ```
 
 ### 컴포넌트
 
 | 서비스 | 역할 | 기술 |
 |--------|------|------|
-| **Spring Boot** | REST API, JWT 인증, 워크스페이스/파일 관리 | Java, Spring Boot, JPA, MySQL |
-| **Django** | AI 분석 요청 수신, Celery Task 큐잉 | Python, Django REST Framework |
-| **Celery Worker** | PDF → 이미지 → GPT Vision → Manim 렌더링 → S3 업로드 | Celery, PyMuPDF, OpenAI, Manim |
-| **Nginx** | Reverse Proxy | nginx:1.27-alpine |
-| **Redis** | Celery 브로커 및 결과 백엔드 | Redis 7 |
-| **MySQL (RDS)** | Spring 영속 데이터 저장 | MySQL |
-| **AWS S3** | 생성된 영상 저장 | boto3 |
+| **gifpt-fe** | UI, 인증, 애니메이션 요청/폴링 | Next.js 16, TypeScript, Tailwind v4, next-intl |
+| **GIFPT_BE** | REST API, JWT 인증, `/animate` 캐시, 갤러리 | Java 17, Spring Boot 3.5, JPA, MySQL |
+| **GIFPT_AI** | `/animate` 수신 → Celery 큐잉, 렌더링 파이프라인 | Python, Django, Celery, OpenAI, Manim |
+| **Nginx** | Reverse Proxy, CORS | nginx:1.27-alpine |
+| **Redis** | Celery 브로커 & 결과 백엔드 | Redis 7 |
+| **MySQL** | Spring 영속 데이터 | MySQL (외부 호스트, `DB_HOST`) |
+| **AWS S3** | 렌더링된 영상 저장 | 버킷 `gifpt-demo` (us-east-1) |
 
 ---
 
-## AI 파이프라인 (Celery Worker)
+## Animate 플로우
+
+1. FE가 `GET /api/v1/animate?algorithm=<slug>`을 Bearer 토큰과 함께 호출
+2. Spring이 슬러그를 정규화(`normalizeSlug`)하고 SHA-256 해시로 S3 키(`animations/{hash}.mp4`) 계산
+3. **캐시 HIT** → `200` + `videoUrl` 즉시 반환
+4. **캐시 MISS + 비인증** → `401 login_required`
+5. **캐시 MISS + 인증** → `202` + `jobId`, Django에 작업 디스패치
+6. FE가 `GET /api/v1/animate/status/{jobId}`를 3초 간격으로 폴링 (최대 20회)
+7. Worker가 렌더링 완료 후 Spring에 `POST /api/v1/analysis/{jobId}/complete` 콜백
+
+> Spring의 `normalizeSlug()`와 Python 쪽 `normalize_slug()`는 **항상 동일한 S3 키**를 만들어야 하므로 한쪽만 변경하면 캐시가 깨집니다.
+
+---
+
+## AI 렌더링 파이프라인 (Celery Worker)
 
 ```
-PDF 파일
+algorithm slug (+ optional prompt)
   │
   ▼
-[1단계] PDF → base64 이미지 변환 (PyMuPDF, 2x 해상도)
+[1] 도메인 분류 (llm_domain.py)
+     ├─ cnn_matrix → render_cnn_matrix.py  (전용 렌더러)
+     ├─ sorting    → render_sorting.py     (전용 렌더러)
+     └─ general    → LLM 생성 경로
   │
   ▼
-[2단계] Vision 배치 요약 (gpt-4o-mini)
-         - 5페이지씩 배치 처리
-         - 수식/정의/핵심 개념 추출
+[2] Pseudocode IR 생성 (llm_pseudocode.py, gpt-4o)
   │
   ▼
-[3단계] 최종 JSON 생성 (gpt-4o)
-         - 부분 요약 통합 → summary
-         - 영상 생성 지시문 → video_instructions
+[3] Animation IR 생성  (llm_anim_ir.py,   gpt-4o)
   │
   ▼
-[4단계] 도메인 분류 → 렌더링 분기
-         ├─ cnn_param  → CNN 파라미터 시각화
-         ├─ sorting    → 정렬 알고리즘 애니메이션
-         └─ 일반       → Pseudocode IR → Animation IR → Manim 코드 생성 (gpt-4o)
+[4] Manim 코드 생성    (llm_codegen.py,   gpt-4o)
+     - manim_api_ref.md을 컨텍스트로 주입
   │
   ▼
-[5단계] Manim 렌더링 → MP4 (최대 3회 재시도, fallback 포함)
+[5] Manim 렌더링 → MP4 (최대 3회 재시도, fallback 포함)
   │
   ▼
-[6단계] S3 업로드 → Spring 콜백 (POST /api/v1/analysis/{jobId}/complete)
+[6] S3 업로드 → Spring 콜백
 ```
+
+Celery 태스크 진입점: `studio.animate_algorithm(job_id, algorithm, prompt=None)` (`GIFPT_AI/studio/tasks.py`)
 
 ---
 
@@ -88,52 +109,24 @@ PDF 파일
 
 | Method | Path | 설명 |
 |--------|------|------|
-| `POST` | `/workspaces` | PDF 업로드 + 워크스페이스 생성 (multipart/form-data) |
-| `POST` | `/workspaces/from-file` | 이미 업로드된 fileId로 워크스페이스 생성 |
-| `GET` | `/workspaces` | 내 워크스페이스 목록 조회 (페이징) |
-| `GET` | `/workspaces/{workspaceId}` | 워크스페이스 상세 조회 (요약, 영상 URL, 상태 등) |
-| `POST` | `/workspaces/{workspaceId}/chat` | 워크스페이스 기반 AI 챗봇 |
-| `DELETE` | `/workspaces/{workspaceId}` | 워크스페이스 삭제 |
-| `POST` | `/analysis/{jobId}/complete` | Worker → Spring 결과 콜백 (내부용) |
+| `POST` | `/auth/signup` | 회원가입 |
+| `POST` | `/auth/login` | 로그인 (access token + HttpOnly refresh 쿠키) |
+| `POST` | `/auth/logout` | 로그아웃 |
+| `GET`  | `/auth/me` | 현재 사용자 조회 |
+| `GET`  | `/animate?algorithm=<slug>` | 캐시 조회 → 200/202/401 |
+| `POST` | `/animate` | 커스텀 프롬프트 기반 생성 요청 |
+| `GET`  | `/animate/status/{jobId}` | 작업 상태 조회 |
+| `GET`  | `/gallery` | 트렌딩 갤러리 |
+| `GET`  | `/gallery/mine` | 내 갤러리 |
+| `POST` | `/analysis/{jobId}/complete` | Worker → Spring 결과 콜백 (내부) |
+| `GET`  | `/healthz` | 헬스체크 |
 
 ### Django (`/`)
 
 | Method | Path | 설명 |
 |--------|------|------|
-| `POST` | `/analyze` | PDF 분석 작업 큐잉 (Spring → Django 내부 호출) |
-| `GET` | `/task-status/{task_id}` | Celery 작업 상태 조회 |
-
----
-
-## 디렉토리 구조
-
-```
-GIFPT-RELEASE/
-├── docker-compose.yml
-├── shared/
-│   ├── uploads/        # 사용자 PDF 저장 (Spring/Django/Worker 공유)
-│   └── results/        # Manim 렌더링 영상 임시 저장
-├── nginx/
-│   └── conf.d/         # Nginx 설정
-├── GIFPT-BE/           # Spring Boot 백엔드
-│   └── src/main/java/com/gifpt/
-│       ├── security/   # JWT 인증, Spring Security
-│       ├── workspace/  # 워크스페이스 CRUD, 챗봇
-│       ├── analysis/   # 분석 Job 관리, 콜백 수신
-│       └── file/       # 파일 업로드, S3 연동
-└── GIFPT_AI/           # Django AI 서버 + Celery Worker
-    └── studio/
-        ├── tasks.py        # Celery Task (analyze_pdf_vision)
-        ├── video_render.py # Manim 렌더링 파이프라인
-        ├── s3_utils.py     # S3 업로드
-        └── ai/
-            ├── llm_domain.py       # 도메인 분류 LLM
-            ├── llm_pseudocode.py   # Pseudocode IR 생성
-            ├── llm_anim_ir.py      # Animation IR 생성
-            ├── llm_codegen.py      # Manim 코드 생성
-            ├── render_cnn_matrix.py  # CNN 시각화
-            └── render_sorting.py     # 정렬 시각화
-```
+| `POST` | `/animate` | 렌더 작업 큐잉 (Spring → Django 내부 호출) |
+| `GET`  | `/tasks/{task_id}` | Celery 작업 상태 조회 |
 
 ---
 
@@ -141,85 +134,96 @@ GIFPT-RELEASE/
 
 ### 사전 요구사항
 - Docker, Docker Compose
-- AWS 계정 (S3 버킷: `gifpt-s3`, 리전: `ap-northeast-2`)
+- MySQL (외부 또는 호스트에 실행)
 - OpenAI API Key
-- MySQL (host.docker.internal:3306, DB명: `gifpt`)
+- AWS 자격증명 (S3 버킷 `gifpt-demo`, 리전 `us-east-1`)
 
-### 환경변수 설정
+### 환경변수
 
 프로젝트 루트에 `.env` 파일 생성:
 
 ```env
+# DB
+DB_HOST=host.docker.internal
 DB_USER=root
 DB_PASSWORD=your_mysql_password
 
+# Auth
 GIFPT_JWT_SECRET=your_jwt_secret
+GIFPT_CALLBACK_SECRET=shared_secret_for_worker_callback
 
+# AWS
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 
+# OpenAI
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-### 실행
+### 전체 스택 실행
 
 ```bash
-# Shared 디렉토리 생성
 mkdir -p shared/uploads shared/results
-
-# 전체 서비스 실행
 docker-compose up -d
-
-# 로그 확인
 docker-compose logs -f worker
 ```
 
-### 접속
-
-- **API 서버**: `http://localhost` (Nginx → Spring :8080)
-- **Django 직접**: `http://localhost:8000`
+접속: `http://localhost` (Nginx → Spring) · Django 직접 `http://localhost:8000`
 
 ---
 
-## 로컬 개발 (Spring Boot 단독 실행)
+## 로컬 개발
 
+### Frontend
 ```bash
-cd GIFPT-BE
+cd gifpt-fe
+npm install
+echo "BACKEND_URL=http://localhost:80" > .env.local
+npm run dev          # http://localhost:3000
+npm test             # Vitest
+npm run lint
+```
 
-# .env 생성
-echo "DB_PASSWORD=your_password" > .env
-
-# 실행
+### Backend
+```bash
+cd GIFPT_BE
 ./gradlew bootRun
-
-# 테스트
 ./gradlew test
-
-# 빌드
 ./gradlew build
+```
+
+### AI Worker
+```bash
+cd GIFPT_AI
+python manage.py runserver
+celery -A GIFPT_AI worker -l info -Q gifpt.default
 ```
 
 ---
 
-## AWS S3 설정 참고
+## 배포
 
-- 버킷 정책: **BucketOwnerEnforced** (ACL 비활성화)
-- ContentType 지정 필수:
-  ```python
-  s3.upload_file(local_path, bucket, key, ExtraArgs={"ContentType": "video/mp4"})
-  ```
+- **Frontend**: Vercel 자동 배포 (push to `main`). `vercel.json`이 모노레포 빌드 설정.
+- **Backend / AI**: AWS EC2에서 Docker Compose + Nginx. GitHub Actions로 `ehho/gifpt-spring`, `ehho/gifpt-django`, `ehho/gifpt-worker` 이미지 빌드/푸시.
+- **Nginx CORS**: `https://gifpt-front.vercel.app`만 허용 (Vercel 서버사이드 rewrite는 CORS 우회).
 
 ---
 
 ## 콜백 응답 형식
 
-Worker → Spring 콜백:
+Worker → Spring:
 ```json
 POST /api/v1/analysis/{jobId}/complete
 {
   "status": "SUCCESS",
-  "summary": "...",
-  "resultUrl": "https://s3.amazonaws.com/gifpt-s3/....mp4",
+  "resultUrl": "https://gifpt-demo.s3.amazonaws.com/animations/<hash>.mp4",
   "errorMessage": null
 }
 ```
+
+---
+
+## 참고 문서
+- `CLAUDE.md` — 서브프로젝트별 상세 아키텍처 가이드
+- `DESIGN.md` — 프런트엔드 디자인 시스템 스펙
+- `TODOS.md` — 진행 중인 작업 목록
