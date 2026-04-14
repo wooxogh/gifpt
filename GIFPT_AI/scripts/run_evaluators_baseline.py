@@ -11,13 +11,22 @@ Usage (from GIFPT_AI/):
     python -m scripts.run_evaluators_baseline --experiment-prefix v1_baseline
     python -m scripts.run_evaluators_baseline --limit 2 --no-render
 
+    # Experiment A: condensed pedagogical rules variant
+    python -m scripts.run_evaluators_baseline \
+        --prompt-variant condensed \
+        --experiment-prefix v1_exp_a_condensed
+
 Flags:
     --dataset, -d       LangSmith dataset name (default: gifpt-goldset-v0)
-    --experiment-prefix Experiment label attached to the run
+    --experiment-prefix Experiment label attached to the run. The prompt variant
+                        is appended automatically (e.g. `v1_baseline_full`)
     --limit N           Only run the first N examples (cheap smoke runs)
     --no-render         Skip Manim render + QA (measures 2 LLM edges only)
     --dry-run           Use the goldset's reference_code instead of calling LLM
     --offline           Run 1 synthetic fixture case without touching LangSmith
+    --prompt-variant    `full` (default) or `condensed`. Sets GIFPT_PROMPT_VARIANT
+                        before the pipeline runs so codegen picks up the matching
+                        PEDAGOGICAL_RULES block. Experiment A compares the two.
 
 The 4 evaluators (pseudo_anim, anim_codegen, codegen_render, render_qa) are
 registered as LangSmith feedback producers, giving the "16 case × 4 evaluator"
@@ -30,12 +39,22 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 
 _HERE = Path(__file__).resolve()
 _GIFPT_AI = _HERE.parents[1]
 if str(_GIFPT_AI) not in sys.path:
     sys.path.insert(0, str(_GIFPT_AI))
+
+# Load GIFPT_AI/.env so OPENAI_API_KEY / LANGSMITH_API_KEY are available
+# when this script runs from the shell, matching how llm_codegen.py reads
+# its OpenAI key at import time.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(_GIFPT_AI / ".env")
+except ImportError:
+    pass
 
 
 def _run_offline() -> int:
@@ -258,20 +277,28 @@ def _run_live(
           + (f" (limit={limit})" if limit else "")
           + f" [render={render}, qa={run_qa}]")
 
+    # When `limit` is set, fetch examples explicitly and pass the sliced
+    # list as `data`. The `max_examples` kwarg on `evaluate()` is not
+    # supported on every LangSmith SDK version and raises ValueError on
+    # newer ones, so we avoid it entirely.
+    if limit:
+        datasets = list(client.list_datasets(dataset_name=dataset_name))
+        if not datasets:
+            print(f"Dataset '{dataset_name}' not found.", file=sys.stderr)
+            return 1
+        examples = list(client.list_examples(dataset_id=datasets[0].id))[:limit]
+        data_arg: Any = examples
+        print(f"Sliced dataset to first {len(examples)} example(s)")
+    else:
+        data_arg = dataset_name
+
     eval_kwargs: dict = {
-        "data": dataset_name,
+        "data": data_arg,
         "evaluators": list(ALL_EVALUATORS),
         "experiment_prefix": experiment_prefix,
     }
-    if limit:
-        eval_kwargs["max_examples"] = limit
 
-    try:
-        results = evaluate(target, **eval_kwargs)
-    except TypeError:
-        # Older SDKs don't support max_examples — fall back
-        eval_kwargs.pop("max_examples", None)
-        results = evaluate(target, **eval_kwargs)
+    results = evaluate(target, **eval_kwargs)
 
     print("\nLangSmith evaluation run submitted.")
     try:
@@ -292,6 +319,12 @@ def main() -> int:
     parser.add_argument("--no-qa", action="store_true", help="Skip Vision QA step")
     parser.add_argument("--dry-run", action="store_true", help="Skip LLM pipeline, stub capture from reference_code")
     parser.add_argument("--offline", action="store_true", help="Run 1 synthetic fixture; zero deps")
+    parser.add_argument(
+        "--prompt-variant",
+        choices=("full", "condensed"),
+        default="full",
+        help="PEDAGOGICAL_RULES variant for codegen system prompt (Experiment A)",
+    )
     args = parser.parse_args()
 
     if args.offline:
@@ -300,9 +333,17 @@ def main() -> int:
     if args.dry_run:
         return _run_dry(args.dataset, args.limit)
 
+    # Propagate the prompt variant to the codegen module and tag the
+    # experiment so FULL vs CONDENSED runs are distinguishable in the
+    # LangSmith UI. Set BEFORE calling _run_live so the env var is in
+    # place when the codegen module resolves it at call time.
+    os.environ["GIFPT_PROMPT_VARIANT"] = args.prompt_variant
+    experiment_prefix = f"{args.experiment_prefix}_{args.prompt_variant}"
+    print(f"GIFPT_PROMPT_VARIANT={args.prompt_variant} -> experiment_prefix={experiment_prefix}")
+
     return _run_live(
         args.dataset,
-        args.experiment_prefix,
+        experiment_prefix,
         args.limit,
         render=not args.no_render,
         run_qa=not (args.no_qa or args.no_render),

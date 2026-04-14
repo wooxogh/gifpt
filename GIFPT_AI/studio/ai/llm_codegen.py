@@ -329,6 +329,35 @@ PHASE TRANSITION RULES:
   instead of Transform to avoid ghost text artifacts.
 """
 
+# Experiment A (Week 3) — FULL vs CONDENSED pedagogical rules.
+# Both system prompts are byte-identical except for the rules block, so any
+# delta LangSmith reports across runs isolates the effect of the prompt cut.
+SYSTEM_PROMPT_FULL = SYSTEM_PROMPT
+SYSTEM_PROMPT_CONDENSED = SYSTEM_PROMPT_FULL.replace(
+    PEDAGOGICAL_RULES_FULL, PEDAGOGICAL_RULES_CONDENSED
+)
+if SYSTEM_PROMPT_CONDENSED == SYSTEM_PROMPT_FULL:
+    # Fail fast: the substitution must actually happen. If the FULL rules
+    # block drifts out of the template the two variants would silently
+    # collapse to the same prompt and the experiment would be meaningless.
+    raise RuntimeError(
+        "SYSTEM_PROMPT_CONDENSED substitution failed — PEDAGOGICAL_RULES_FULL "
+        "text no longer appears verbatim in SYSTEM_PROMPT_FULL."
+    )
+
+
+def _get_system_prompt() -> str:
+    """Return FULL or CONDENSED system prompt based on GIFPT_PROMPT_VARIANT.
+
+    Read at call time (not import time) so experiment runners can flip
+    the env var between LangSmith runs without reloading the module.
+    """
+    variant = (os.getenv("GIFPT_PROMPT_VARIANT") or "full").strip().lower()
+    if variant == "condensed":
+        return SYSTEM_PROMPT_CONDENSED
+    return SYSTEM_PROMPT_FULL
+
+
 def build_prompt_codegen(anim_ir: dict) -> str:
     return f"""
 You are a Manim expert. Convert the following structured animation IR into a **complete** Manim Scene.
@@ -795,7 +824,7 @@ def call_llm_codegen(anim_ir: dict):
     resp = client.chat.completions.create(
         model=MODEL_PRIMARY,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _get_system_prompt()},
             {"role": "user", "content": prompt},
         ],
     )
@@ -809,7 +838,7 @@ def call_llm_codegen_with_usage(anim_ir: dict):
     resp = client.chat.completions.create(
         model=MODEL_PRIMARY,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _get_system_prompt()},
             {"role": "user", "content": prompt},
         ],
     )
