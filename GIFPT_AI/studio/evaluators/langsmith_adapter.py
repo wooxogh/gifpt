@@ -14,6 +14,7 @@ from typing import Any
 
 from studio.evaluators.anim_codegen_preservation import anim_codegen_preservation
 from studio.evaluators.codegen_render_preservation import codegen_render_preservation
+from studio.evaluators.intent_preservation import intent_preservation
 from studio.evaluators.pseudo_anim_preservation import pseudo_anim_preservation
 from studio.evaluators.render_qa_preservation import render_qa_preservation
 
@@ -62,11 +63,22 @@ def render_qa_evaluator(run, example=None) -> dict:  # noqa: ARG001
     return result.as_feedback()
 
 
+def intent_preservation_evaluator(run, example=None) -> dict:  # noqa: ARG001
+    outputs = _outputs(run)
+    result = intent_preservation(
+        outputs.get("intent"),
+        outputs.get("intent_loss"),
+        stage_errors=outputs.get("stage_errors"),
+    )
+    return result.as_feedback()
+
+
 ALL_EVALUATORS: tuple = (
     pseudo_anim_evaluator,
     anim_codegen_evaluator,
     codegen_render_evaluator,
     render_qa_evaluator,
+    intent_preservation_evaluator,
 )
 
 
