@@ -7,6 +7,12 @@ the edge loss we're trying to quantify.
 
 Returned dict:
     {
+      "intent": {"entities": [...], "operations": [...]},  # may be empty if extract failed
+      "intent_loss": {
+          "pseudo_ir": {...IntentLoss...},
+          "anim_ir":   {...IntentLoss...},
+          "codegen":   {...IntentLoss...},
+      },
       "pseudo_ir": dict,        # may be {} if stage crashed
       "anim_ir": dict,
       "manim_code": str,
@@ -20,6 +26,10 @@ Returned dict:
       "qa_result": dict,        # empty if not reached
       "stage_errors": {stage_name: str} for any stage that raised
     }
+
+Week 4 (Day 2): added Stage 0 IntentTracker.extract + per-stage
+check_intent_loss. If intent extraction itself fails, downstream stages
+still run; intent_loss is left empty and a stage_errors entry is recorded.
 """
 from __future__ import annotations
 
@@ -55,9 +65,16 @@ def run_pipeline_capture(
     from studio.ai.llm_pseudocode import call_llm_pseudocode_ir_with_usage
     from studio.ai.llm_anim_ir import call_llm_anim_ir_with_usage
     from studio.ai.llm_codegen import call_llm_codegen_with_usage
+    from studio.ai.intent_tracker import (
+        IntentSchema,
+        check_intent_loss,
+        extract_intent_with_usage,
+    )
 
     capture: dict[str, Any] = {
         "description": description,
+        "intent": {"entities": [], "operations": []},
+        "intent_loss": {},
         "pseudo_ir": {},
         "anim_ir": {},
         "manim_code": "",
@@ -73,6 +90,39 @@ def run_pipeline_capture(
         "usage": {},
     }
 
+    # Stage 0: intent extraction (non-blocking — a failure here leaves
+    # intent_loss empty but does not abort the rest of the pipeline)
+    intent: IntentSchema | None = None
+    try:
+        intent, usage_intent = extract_intent_with_usage(description)
+        capture["intent"] = {
+            "entities": list(intent.entities),
+            "operations": list(intent.operations),
+        }
+        capture["usage"]["intent"] = usage_intent
+    except Exception as exc:
+        capture["stage_errors"]["intent_extract"] = f"{type(exc).__name__}: {exc}"
+        logger.warning("intent_extract stage failed: %s", exc)
+
+    def _record_intent_loss(stage_name: str, artifact: Any) -> None:
+        if intent is None or intent.is_empty():
+            return
+        try:
+            loss = check_intent_loss(intent, artifact, stage_name)
+            capture["intent_loss"][stage_name] = {
+                "stage": loss.stage,
+                "lost_entities": loss.lost_entities,
+                "lost_operations": loss.lost_operations,
+                "preserved_entities": loss.preserved_entities,
+                "preserved_operations": loss.preserved_operations,
+                "preservation_rate": loss.preservation_rate,
+            }
+        except Exception as exc:
+            capture["stage_errors"][f"intent_check_{stage_name}"] = (
+                f"{type(exc).__name__}: {exc}"
+            )
+            logger.warning("intent_check[%s] failed: %s", stage_name, exc)
+
     # Stage 1: pseudo_ir
     try:
         pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(description)
@@ -82,6 +132,7 @@ def run_pipeline_capture(
         capture["stage_errors"]["pseudo_ir"] = f"{type(exc).__name__}: {exc}"
         logger.warning("pseudo_ir stage failed: %s", exc)
         return capture
+    _record_intent_loss("pseudo_ir", capture["pseudo_ir"])
 
     # Stage 2: anim_ir
     try:
@@ -92,6 +143,7 @@ def run_pipeline_capture(
         capture["stage_errors"]["anim_ir"] = f"{type(exc).__name__}: {exc}"
         logger.warning("anim_ir stage failed: %s", exc)
         return capture
+    _record_intent_loss("anim_ir", capture["anim_ir"])
 
     # Stage 3: codegen
     try:
@@ -107,6 +159,7 @@ def run_pipeline_capture(
         capture["stage_errors"]["codegen"] = f"{type(exc).__name__}: {exc}"
         logger.warning("codegen stage failed: %s", exc)
         return capture
+    _record_intent_loss("codegen", capture["manim_code"])
 
     if not render:
         return capture
