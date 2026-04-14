@@ -77,6 +77,7 @@ def _run_offline() -> int:
     from studio.evaluators.langsmith_adapter import (
         anim_codegen_evaluator,
         codegen_render_evaluator,
+        intent_preservation_evaluator,
         pseudo_anim_evaluator,
         render_qa_evaluator,
     )
@@ -86,6 +87,37 @@ def _run_offline() -> int:
             self.outputs = outputs
 
     fixture_capture = {
+        "intent": {
+            "entities": ["array", "pointer"],
+            "operations": ["swap array elements"],
+        },
+        "intent_loss": {
+            "pseudo_ir": {
+                "stage": "pseudo_ir",
+                "lost_entities": [],
+                "lost_operations": [],
+                "preserved_entities": 2,
+                "preserved_operations": 1,
+                "preservation_rate": 1.0,
+            },
+            "anim_ir": {
+                "stage": "anim_ir",
+                "lost_entities": [],
+                "lost_operations": [],
+                "preserved_entities": 2,
+                "preserved_operations": 1,
+                "preservation_rate": 1.0,
+            },
+            "codegen": {
+                "stage": "codegen",
+                "lost_entities": [],
+                "lost_operations": [],
+                "preserved_entities": 2,
+                "preserved_operations": 1,
+                "preservation_rate": 1.0,
+            },
+        },
+        "stage_errors": {},
         "pseudo_ir": {
             "metadata": {"title": "Bubble Sort"},
             "entities": [
@@ -145,12 +177,13 @@ def _run_offline() -> int:
         anim_codegen_evaluator(run),
         codegen_render_evaluator(run),
         render_qa_evaluator(run),
+        intent_preservation_evaluator(run),
     ]
-    print("Offline evaluator smoke test — 1 fixture case × 4 evaluators:\n")
+    print("Offline evaluator smoke test — 1 fixture case × 5 evaluators:\n")
     for fb in feedbacks:
         verdict = "PASS" if fb["score"] == 1.0 else "FAIL"
         print(f"  [{verdict}] {fb['key']:<30s} {fb['comment']}")
-    print("\nAll 4 evaluators wired correctly." if all(f["score"] == 1.0 for f in feedbacks)
+    print("\nAll 5 evaluators wired correctly." if all(f["score"] == 1.0 for f in feedbacks)
           else "\nAt least one evaluator flagged an issue — inspect feedback above.")
     return 0
 
