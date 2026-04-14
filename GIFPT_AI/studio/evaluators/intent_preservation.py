@@ -51,11 +51,12 @@ def intent_preservation(
     Returns:
         EdgeEvalResult with edge="intent_preservation".
     """
-    if stage_errors and "intent_extract" in stage_errors:
+    errors_dict = stage_errors if isinstance(stage_errors, dict) else {}
+    if "intent_extract" in errors_dict:
         return EdgeEvalResult(
             edge="intent_preservation",
             score=0,
-            missing=[f"intent_extract:{stage_errors['intent_extract']}"],
+            missing=[f"intent_extract:{errors_dict['intent_extract']}"],
             extra={"reason": "extract_failed"},
         )
 

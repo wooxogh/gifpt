@@ -108,6 +108,22 @@ def test_extract_failure_scores_zero_with_reason():
     assert any("intent_extract" in m for m in result.missing)
 
 
+def test_non_dict_stage_errors_does_not_crash():
+    """`stage_errors` is typed `dict | None` but a defensive guard protects
+    against truthy non-dict values (e.g. a list bubbling up from a caller
+    error). Without the isinstance check, `"intent_extract" in stage_errors`
+    would TypeError on a list without string items, or silently match against
+    a list element, or crash on indexing."""
+    result = intent_preservation(
+        intent={"entities": ["x"], "operations": []},
+        intent_loss={"pseudo_ir": _loss_record(pres_ent=1)},
+        stage_errors=["not", "a", "dict"],  # type: ignore[arg-type]
+    )
+    # Should fall through to the normal path, not raise.
+    assert result.score == 1
+    assert result.extra["stages_checked"] == 1
+
+
 # ---------- empty intent ----------
 
 

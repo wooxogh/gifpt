@@ -28,8 +28,16 @@ Returned dict:
     }
 
 Week 4 (Day 2): added Stage 0 IntentTracker.extract + per-stage
-check_intent_loss. If intent extraction itself fails, downstream stages
-still run; intent_loss is left empty and a stage_errors entry is recorded.
+check_intent_loss. Intent handling is non-blocking — downstream stages
+always run regardless of intent failures. Two new keys may appear in
+`stage_errors`:
+  - `intent_extract`: the Stage 0 extract call itself raised. `intent`
+    stays empty and per-stage loss checks are skipped for the rest of
+    the run.
+  - `intent_check_<stage>`: extract succeeded, but the deterministic
+    loss check against that stage's artifact raised (e.g. malformed
+    artifact). The affected stage is absent from `intent_loss`, but
+    adjacent stages still get checked.
 """
 from __future__ import annotations
 
