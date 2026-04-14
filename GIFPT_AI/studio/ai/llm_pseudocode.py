@@ -68,20 +68,63 @@ Now convert the following text to JSON pseudocode:
 
 
 
-def build_prompt_pseudocode(user_text: str) -> str:
+def _format_intent_hint(intent: dict | None) -> str:
+    """Render the canonical intent as a REQUIRED block for the user message.
+
+    Week 5 Experiment B: inject the IntentTracker.extract_intent output
+    into the pseudo_ir prompt so the LLM explicitly sees the entities and
+    operations it must preserve. Week 4 Experiment C found ~30% of user
+    intent was already lost at this first LLM stage — this block is the
+    intervention that targets that loss.
+
+    If the intent is empty or None, returns "" so the prompt is unchanged
+    (keeps injection-OFF behavior identical to pre-Week-5 code path).
+    """
+    if not intent:
+        return ""
+    entities = intent.get("entities") or []
+    operations = intent.get("operations") or []
+    if not entities and not operations:
+        return ""
+
+    lines = ["REQUIRED intent to preserve (extracted from user text):"]
+    if entities:
+        lines.append("- Entities that MUST appear in output.entities:")
+        for e in entities:
+            lines.append(f"    * {e}")
+    if operations:
+        lines.append("- Operations that MUST appear in output.operations:")
+        for o in operations:
+            lines.append(f"    * {o}")
+    lines.append(
+        "Every entity above must have a matching output.entities[].id "
+        "(case-insensitive, tokens may be split). Every operation must "
+        "be reflected in output.operations[].action or description."
+    )
+    return "\n".join(lines) + "\n\n"
+
+
+def build_prompt_pseudocode(user_text: str, intent: dict | None = None) -> str:
+    hint = _format_intent_hint(intent)
     return f"""
-Text to convert:
+{hint}Text to convert:
 {user_text}
 
 Output JSON strictly matching the schema described above.
 """.strip()
 
-def call_llm_pseudocode_ir(user_text: str):
+def call_llm_pseudocode_ir(user_text: str, intent: dict | None = None):
     """
     자연어 설명을 도메인과 무관한 순수 pseudocode IR로 변환한다.
     이 단계에서는 domain을 붙이지 않는다.
+
+    Args:
+        user_text: 자연어 알고리즘 설명
+        intent: Week 5 Experiment B에서 주입하는 canonical intent dict
+            (`{entities: [...], operations: [...]}`). None이면 Week 4 이전
+            동작과 동일.
     """
-    prompt = build_prompt_pseudocode(user_text)
+    prompt = build_prompt_pseudocode(user_text, intent=intent)
     resp = client.chat.completions.create(
         model=IR_MODEL,
         response_format={"type": "json_object"},
@@ -118,8 +161,8 @@ def _extract_usage(usage_obj):
 
 
 @traceable(name="pseudo_ir", run_type="chain")
-def call_llm_pseudocode_ir_with_usage(user_text: str):
-    prompt = build_prompt_pseudocode(user_text)
+def call_llm_pseudocode_ir_with_usage(user_text: str, intent: dict | None = None):
+    prompt = build_prompt_pseudocode(user_text, intent=intent)
     resp = client.chat.completions.create(
         model=IR_MODEL,
         response_format={"type": "json_object"},

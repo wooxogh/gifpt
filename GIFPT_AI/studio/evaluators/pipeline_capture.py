@@ -42,11 +42,34 @@ always run regardless of intent failures. Two new keys may appear in
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_injection_stages() -> frozenset[str]:
+    """Parse `GIFPT_INTENT_INJECT` env var into a set of stage names.
+
+    Accepted values:
+        unset / empty / "off" / "none" → injection disabled everywhere
+        "pseudo_ir"                    → only the pseudo_ir stage receives intent
+        "pseudo_ir,anim_ir,codegen"    → all three LLM stages receive intent
+        "all"                          → shorthand for all three
+
+    Unknown tokens are silently dropped (so a typo doesn't secretly enable
+    a stage). Resolved once per `run_pipeline_capture` call rather than
+    cached, so LangSmith batches can reset the flag between experiments.
+    """
+    raw = (os.environ.get("GIFPT_INTENT_INJECT") or "").strip().lower()
+    if raw in ("", "off", "none"):
+        return frozenset()
+    if raw == "all":
+        return frozenset({"pseudo_ir", "anim_ir", "codegen"})
+    known = {"pseudo_ir", "anim_ir", "codegen"}
+    return frozenset(tok.strip() for tok in raw.split(",") if tok.strip() in known)
 
 
 def run_pipeline_capture(
@@ -79,6 +102,8 @@ def run_pipeline_capture(
         extract_intent_with_usage,
     )
 
+    injection_stages = _resolve_injection_stages()
+
     capture: dict[str, Any] = {
         "description": description,
         "intent": {"entities": [], "operations": []},
@@ -96,6 +121,7 @@ def run_pipeline_capture(
         "qa_result": {},
         "stage_errors": {},
         "usage": {},
+        "injection_stages": sorted(injection_stages),
     }
 
     # Stage 0: intent extraction (non-blocking — a failure here leaves
@@ -132,8 +158,20 @@ def run_pipeline_capture(
             logger.warning("intent_check[%s] failed: %s", stage_name, exc)
 
     # Stage 1: pseudo_ir
+    #
+    # Week 5 Experiment B: when the env flag enables `pseudo_ir` injection
+    # AND Stage 0 produced a non-empty intent, pass it through. Otherwise
+    # call the legacy 1-arg path so the control arm is identical to
+    # Experiment C and run-to-run noise stays comparable.
+    pseudo_intent_arg = (
+        capture["intent"]
+        if "pseudo_ir" in injection_stages and intent is not None and not intent.is_empty()
+        else None
+    )
     try:
-        pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(description)
+        pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(
+            description, intent=pseudo_intent_arg
+        )
         capture["pseudo_ir"] = pseudo_ir or {}
         capture["usage"]["pseudo_ir"] = usage_pseudo
     except Exception as exc:
