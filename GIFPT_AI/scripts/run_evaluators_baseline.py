@@ -12,14 +12,19 @@ Usage (from GIFPT_AI/):
     python -m scripts.run_evaluators_baseline --limit 2 --no-render
 
     # Experiment A: condensed pedagogical rules variant
+    # NOTE: pass a BASE prefix without the variant suffix — this script
+    # auto-appends `_{prompt_variant}` so the example below produces
+    # `v1_exp_a_condensed`, not `v1_exp_a_condensed_condensed`.
     python -m scripts.run_evaluators_baseline \
         --prompt-variant condensed \
-        --experiment-prefix v1_exp_a_condensed
+        --experiment-prefix v1_exp_a
 
 Flags:
     --dataset, -d       LangSmith dataset name (default: gifpt-goldset-v0)
-    --experiment-prefix Experiment label attached to the run. The prompt variant
-                        is appended automatically (e.g. `v1_baseline_full`)
+    --experiment-prefix Base experiment label attached to the run. The prompt
+                        variant is appended automatically (e.g. `v1_baseline`
+                        with variant `full` → `v1_baseline_full`). Pass a base
+                        prefix WITHOUT the variant suffix.
     --limit N           Only run the first N examples (cheap smoke runs)
     --no-render         Skip Manim render + QA (measures 2 LLM edges only)
     --dry-run           Use the goldset's reference_code instead of calling LLM

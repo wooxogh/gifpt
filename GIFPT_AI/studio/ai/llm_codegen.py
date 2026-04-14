@@ -1,4 +1,5 @@
 # ai/llm_codegen.py
+import functools
 import os, json, re
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -330,20 +331,34 @@ PHASE TRANSITION RULES:
 """
 
 # Experiment A (Week 3) — FULL vs CONDENSED pedagogical rules.
-# Both system prompts are byte-identical except for the rules block, so any
-# delta LangSmith reports across runs isolates the effect of the prompt cut.
+# The FULL prompt is SYSTEM_PROMPT above; the CONDENSED variant is derived
+# on demand inside `_get_condensed_system_prompt()` via a string replace on
+# the pedagogical rules block. Both variants are byte-identical except for
+# that block, so any delta LangSmith reports across runs isolates the effect
+# of the prompt cut.
 SYSTEM_PROMPT_FULL = SYSTEM_PROMPT
-SYSTEM_PROMPT_CONDENSED = SYSTEM_PROMPT_FULL.replace(
-    PEDAGOGICAL_RULES_FULL, PEDAGOGICAL_RULES_CONDENSED
-)
-if SYSTEM_PROMPT_CONDENSED == SYSTEM_PROMPT_FULL:
-    # Fail fast: the substitution must actually happen. If the FULL rules
-    # block drifts out of the template the two variants would silently
-    # collapse to the same prompt and the experiment would be meaningless.
-    raise RuntimeError(
-        "SYSTEM_PROMPT_CONDENSED substitution failed — PEDAGOGICAL_RULES_FULL "
-        "text no longer appears verbatim in SYSTEM_PROMPT_FULL."
+
+
+@functools.lru_cache(maxsize=1)
+def _get_condensed_system_prompt() -> str:
+    """Derive the CONDENSED system prompt lazily and cache the result.
+
+    Moved out of module import so that an unrelated edit to
+    PEDAGOGICAL_RULES_FULL formatting does not crash every caller of
+    llm_codegen at import time. The substitution is still verified — but
+    only when a condensed run is actually requested.
+    """
+    condensed = SYSTEM_PROMPT_FULL.replace(
+        PEDAGOGICAL_RULES_FULL, PEDAGOGICAL_RULES_CONDENSED
     )
+    if condensed == SYSTEM_PROMPT_FULL:
+        raise RuntimeError(
+            "SYSTEM_PROMPT_CONDENSED substitution failed — "
+            "PEDAGOGICAL_RULES_FULL text no longer appears verbatim in "
+            "SYSTEM_PROMPT_FULL. Update PEDAGOGICAL_RULES_FULL to match the "
+            "block embedded in SYSTEM_PROMPT, or regenerate both together."
+        )
+    return condensed
 
 
 def _get_system_prompt() -> str:
@@ -351,10 +366,11 @@ def _get_system_prompt() -> str:
 
     Read at call time (not import time) so experiment runners can flip
     the env var between LangSmith runs without reloading the module.
+    The CONDENSED variant is constructed lazily on first condensed call.
     """
     variant = (os.getenv("GIFPT_PROMPT_VARIANT") or "full").strip().lower()
     if variant == "condensed":
-        return SYSTEM_PROMPT_CONDENSED
+        return _get_condensed_system_prompt()
     return SYSTEM_PROMPT_FULL
 
 
@@ -672,7 +688,7 @@ def call_llm_codegen_with_qa_feedback(anim_ir: dict, qa_issues: list[str]) -> st
     resp = client.chat.completions.create(
         model=MODEL_PRIMARY,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _get_system_prompt()},
             {"role": "user", "content": prompt},
         ],
         timeout=90,
@@ -778,7 +794,7 @@ def call_llm_codegen_fix(
     resp = client.chat.completions.create(
         model=MODEL_FAST,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _get_system_prompt()},
             {"role": "user", "content": fix_prompt},
         ],
         timeout=60,
