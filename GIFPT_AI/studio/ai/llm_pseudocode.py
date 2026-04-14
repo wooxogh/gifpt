@@ -3,6 +3,7 @@ import os, json
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from studio.ai._models import IR_MODEL
 from studio.ai._tracing import traceable
 
 load_dotenv()
@@ -82,7 +83,7 @@ def call_llm_pseudocode_ir(user_text: str):
     """
     prompt = build_prompt_pseudocode(user_text)
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=IR_MODEL,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_PSEUDOCODE},
@@ -120,7 +121,7 @@ def _extract_usage(usage_obj):
 def call_llm_pseudocode_ir_with_usage(user_text: str):
     prompt = build_prompt_pseudocode(user_text)
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=IR_MODEL,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_PSEUDOCODE},
