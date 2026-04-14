@@ -2,6 +2,7 @@
 
 Run from GIFPT_AI/: python3 -m pytest studio/tests/test_llm_codegen.py -v
 """
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -21,10 +22,13 @@ from studio.ai.llm_codegen import (  # noqa: E402
     _build_few_shot_system_prompt,
     _build_intent_context,
     _build_attempt_history_context,
+    _get_condensed_system_prompt,
+    _get_system_prompt,
     call_llm_codegen_fix,
     call_llm_codegen_with_qa_feedback,
     MANIM_API_REFERENCE,
     SYSTEM_PROMPT,
+    SYSTEM_PROMPT_FULL,
     PEDAGOGICAL_RULES_FULL,
     PEDAGOGICAL_RULES_CONDENSED,
     MODEL_PRIMARY,
@@ -323,3 +327,59 @@ class TestManimApiReferenceInjection:
         assert "<manim_api_reference>" in prompt
         assert "Rectangle(color=WHITE" in prompt
         assert "FadeIn" in prompt
+
+
+class TestSystemPromptVariantSelection:
+    """_get_system_prompt() experiment A (FULL vs CONDENSED) switching."""
+
+    def setup_method(self):
+        # Ensure cached CONDENSED + env var state are reset per test.
+        _get_condensed_system_prompt.cache_clear()
+        self._prior = os.environ.pop("GIFPT_PROMPT_VARIANT", None)
+
+    def teardown_method(self):
+        _get_condensed_system_prompt.cache_clear()
+        if self._prior is None:
+            os.environ.pop("GIFPT_PROMPT_VARIANT", None)
+        else:
+            os.environ["GIFPT_PROMPT_VARIANT"] = self._prior
+
+    def test_default_returns_full(self):
+        """Unset env var → FULL variant (production default)."""
+        assert _get_system_prompt() is SYSTEM_PROMPT_FULL
+
+    def test_full_variant_explicit(self):
+        os.environ["GIFPT_PROMPT_VARIANT"] = "full"
+        assert _get_system_prompt() is SYSTEM_PROMPT_FULL
+
+    def test_condensed_variant(self):
+        os.environ["GIFPT_PROMPT_VARIANT"] = "condensed"
+        result = _get_system_prompt()
+        # Returned prompt must differ from FULL and must have substituted
+        # the pedagogical rules block — otherwise the experiment would be
+        # comparing the same prompt to itself.
+        assert result != SYSTEM_PROMPT_FULL
+        assert PEDAGOGICAL_RULES_CONDENSED in result
+        assert PEDAGOGICAL_RULES_FULL not in result
+
+    def test_condensed_variant_case_insensitive(self):
+        os.environ["GIFPT_PROMPT_VARIANT"] = "CONDENSED"
+        assert _get_system_prompt() != SYSTEM_PROMPT_FULL
+
+    def test_unknown_variant_falls_back_to_full(self):
+        os.environ["GIFPT_PROMPT_VARIANT"] = "weird_value"
+        assert _get_system_prompt() is SYSTEM_PROMPT_FULL
+
+    def test_substitution_actually_changes_prompt(self):
+        """Guard against PEDAGOGICAL_RULES_FULL drifting out of SYSTEM_PROMPT.
+
+        This is the invariant previously enforced at import time. If the
+        FULL rules block is ever reformatted (whitespace, indentation, etc.)
+        but SYSTEM_PROMPT is not regenerated in lockstep, the substitution
+        collapses to a no-op and the A/B experiment becomes meaningless.
+        """
+        condensed = _get_condensed_system_prompt()
+        assert condensed != SYSTEM_PROMPT_FULL
+        assert len(SYSTEM_PROMPT_FULL) - len(condensed) == len(
+            PEDAGOGICAL_RULES_FULL
+        ) - len(PEDAGOGICAL_RULES_CONDENSED)

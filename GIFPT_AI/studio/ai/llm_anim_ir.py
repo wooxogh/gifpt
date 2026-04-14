@@ -3,6 +3,7 @@ import os, json
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from studio.ai._models import IR_MODEL
 from studio.ai._tracing import traceable
 
 load_dotenv()
@@ -78,7 +79,7 @@ Convert the following pseudocode into a structured animation plan JSON:
 def call_llm_anim_ir(pseudocode_json: dict):
     prompt = build_prompt_anim_ir(pseudocode_json)
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=IR_MODEL,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -91,7 +92,7 @@ def call_llm_anim_ir(pseudocode_json: dict):
 def call_llm_anim_ir_with_usage(pseudocode_json: dict):
     prompt = build_prompt_anim_ir(pseudocode_json)
     resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model=IR_MODEL,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
