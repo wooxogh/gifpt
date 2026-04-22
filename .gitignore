@@ -163,3 +163,10 @@ cython_debug/
 GIFPT_AI/reports/
 GIFPT_AI/scripts/_tmp/
 GIFPT_AI/scripts/.env.audit
+
+# loadtest
+loadtest/results/*/k6_summary.json
+loadtest/results/*/metrics.csv
+loadtest/tokens.json
+!loadtest/results/.gitkeep
+!loadtest/results/*/summary.md

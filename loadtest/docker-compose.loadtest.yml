@@ -1,0 +1,73 @@
+# Usage:
+#   docker compose -f ../docker-compose.yml -f docker-compose.loadtest.yml up -d
+#
+# Overrides for local MacBook M2 load testing:
+# - Adds local mysql container (prod uses RDS)
+# - Replaces Celery worker with mock (no OpenAI/Manim)
+# - Switches all services to linux/arm64 (no Rosetta)
+# - Switches Spring to 'loadtest' profile
+
+services:
+  mysql:
+    image: mysql:8.0
+    platform: linux/arm64
+    environment:
+      MYSQL_ROOT_PASSWORD: loadtest-root
+      MYSQL_DATABASE: gifpt
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - loadtest-mysql-data:/var/lib/mysql
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max-connections=500
+
+  spring:
+    platform: linux/arm64
+    image: gifpt-spring-loadtest:arm64
+    build:
+      context: ./GIFPT_BE
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: loadtest
+      DB_HOST: mysql
+    depends_on:
+      - mysql
+      - redis
+
+  django:
+    platform: linux/arm64
+    image: gifpt-django-loadtest:arm64
+    build:
+      context: ./GIFPT_AI
+      dockerfile: Dockerfile
+
+  worker:
+    platform: linux/arm64
+    image: gifpt-worker-loadtest:arm64
+    build:
+      context: ./loadtest/mock-worker
+      dockerfile: Dockerfile
+    environment:
+      SPRING_CALLBACK_BASE: http://spring:8080
+      GIFPT_CALLBACK_SECRET: ${GIFPT_CALLBACK_SECRET}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      MOCK_MIN_SLEEP_SECONDS: "8"
+      MOCK_MAX_SLEEP_SECONDS: "20"
+    command: celery -A studio.tasks worker -l info -Q gifpt.default --concurrency=4
+    depends_on:
+      - redis
+      - spring
+
+  redis:
+    platform: linux/arm64
+
+  nginx:
+    platform: linux/arm64
+
+volumes:
+  loadtest-mysql-data:
