@@ -1,10 +1,14 @@
 # video_render.py
 import ast
+import hashlib
+import json
 import os
 import time
 import tempfile
 import subprocess
 import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 import logging
 
@@ -306,6 +310,39 @@ def render_fallback(output_dir: Path, output_name: str, algorithm_name: str = "A
     raise RuntimeError("render_fallback: fallback scene also failed to render")
 
 
+def _new_render_trace(instructions: str) -> dict:
+    """Per-render trace skeleton for offline retry/cost analysis.
+
+    Dump is gated by GIFPT_DUMP_TRACES=1 in `_dump_render_trace` so production
+    behavior is unchanged when the env var is absent.
+    """
+    return {
+        "job_id": uuid.uuid4().hex[:12],
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "instructions_sha256_16": hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:16],
+        "instructions_chars": len(instructions),
+        "pipeline_attempts": [],
+        "final_outcome": "unknown",
+    }
+
+
+def _dump_render_trace(trace: dict) -> None:
+    """Persist trace to RESULT_DIR/traces/{job_id}.json when GIFPT_DUMP_TRACES=1.
+
+    Wrapped in broad except: instrumentation must never break the pipeline.
+    """
+    if os.environ.get("GIFPT_DUMP_TRACES") != "1":
+        return
+    try:
+        traces_dir = RESULT_DIR / "traces"
+        traces_dir.mkdir(parents=True, exist_ok=True)
+        trace["finished_at"] = datetime.now(timezone.utc).isoformat()
+        out_path = traces_dir / f"{trace['job_id']}.json"
+        out_path.write_text(json.dumps(trace, indent=2, default=str), encoding="utf-8")
+    except Exception:
+        logger.exception("[trace] failed to dump render trace (non-fatal)")
+
+
 def render_video_from_instructions(instructions: str) -> str:
     """
     Custom prompt → generic pipeline (pseudocode IR → anim IR → codegen → render).
@@ -322,165 +359,217 @@ def render_video_from_instructions(instructions: str) -> str:
     from studio.ai.llm_codegen import call_llm_codegen_with_usage, call_llm_codegen_fix, call_llm_codegen_with_qa_feedback
 
     user_text = _sanitize_text(instructions)
+    _trace = _new_render_trace(instructions)
 
     MAX_PIPELINE_ATTEMPTS = 2  # Vision QA 실패 시 재시도
     MAX_IR_RETRIES = 2         # 각 IR 단계 재시도
 
     # Persistent state across pipeline attempts for QA feedback loop
     prev_qa_issues: list[str] = []
+    video_path: str | None = None
 
-    for pipeline_attempt in range(1, MAX_PIPELINE_ATTEMPTS + 1):
-        logger.info("[Pipeline] attempt %d/%d (generic)", pipeline_attempt, MAX_PIPELINE_ATTEMPTS)
+    try:
+        for pipeline_attempt in range(1, MAX_PIPELINE_ATTEMPTS + 1):
+            logger.info("[Pipeline] attempt %d/%d (generic)", pipeline_attempt, MAX_PIPELINE_ATTEMPTS)
 
-        # ── Step 1: Pseudocode IR + validation ──
-        pseudo_ir = None
-        for ir_try in range(1, MAX_IR_RETRIES + 1):
-            t0 = time.perf_counter()
-            pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(user_text)
-            t_pseudo = time.perf_counter() - t0
-            logger.info("[Pseudocode IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_pseudo)
+            attempt_record: dict = {
+                "attempt": pipeline_attempt,
+                "used_qa_feedback": bool(prev_qa_issues),
+                "pseudo_ir_tries": 0,
+                "pseudo_ir_passed": False,
+                "anim_ir_tries": 0,
+                "anim_ir_passed": False,
+                "codegen_attempts": [],
+                "render_succeeded": False,
+                "used_fallback": False,
+                "qa_score": None,
+                "qa_passed": None,
+            }
+            _trace["pipeline_attempts"].append(attempt_record)
 
-            ir_issues = validate_pseudocode_ir(pseudo_ir)
-            deep_issues = validate_pseudocode_ir_deep(pseudo_ir)
-            all_ir_issues = ir_issues + deep_issues
-            if not all_ir_issues:
-                logger.info("[Pseudocode IR] passed validation — entities=%d operations=%d",
-                            len(pseudo_ir.get("entities", [])), len(pseudo_ir.get("operations", [])))
-                break
-            if deep_issues:
-                logger.warning("[Pseudocode IR] deep validation issues: %s", deep_issues[:3])
-            logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
-            if ir_try == MAX_IR_RETRIES:
-                logger.warning("[Pseudocode IR] proceeding with last attempt despite issues")
+            # ── Step 1: Pseudocode IR + validation ──
+            pseudo_ir = None
+            for ir_try in range(1, MAX_IR_RETRIES + 1):
+                attempt_record["pseudo_ir_tries"] = ir_try
+                t0 = time.perf_counter()
+                pseudo_ir, usage_pseudo = call_llm_pseudocode_ir_with_usage(user_text)
+                t_pseudo = time.perf_counter() - t0
+                logger.info("[Pseudocode IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_pseudo)
 
-        # ── Step 2: Animation IR + validation ──
-        anim_ir = None
-        for ir_try in range(1, MAX_IR_RETRIES + 1):
-            ta0 = time.perf_counter()
-            anim_ir, usage_anim = call_llm_anim_ir_with_usage(pseudo_ir)
-            t_anim = time.perf_counter() - ta0
-            logger.info("[Anim IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_anim)
+                ir_issues = validate_pseudocode_ir(pseudo_ir)
+                deep_issues = validate_pseudocode_ir_deep(pseudo_ir)
+                all_ir_issues = ir_issues + deep_issues
+                if not all_ir_issues:
+                    logger.info("[Pseudocode IR] passed validation — entities=%d operations=%d",
+                                len(pseudo_ir.get("entities", [])), len(pseudo_ir.get("operations", [])))
+                    attempt_record["pseudo_ir_passed"] = True
+                    break
+                if deep_issues:
+                    logger.warning("[Pseudocode IR] deep validation issues: %s", deep_issues[:3])
+                logger.warning("[Pseudocode IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
+                if ir_try == MAX_IR_RETRIES:
+                    logger.warning("[Pseudocode IR] proceeding with last attempt despite issues")
 
-            ir_issues = validate_anim_ir(anim_ir)
-            deep_issues = validate_anim_ir_deep(anim_ir)
-            all_ir_issues = ir_issues + deep_issues
-            if not all_ir_issues:
-                logger.info("[Anim IR] passed validation — layout=%d actions=%d",
-                            len(anim_ir.get("layout", [])), len(anim_ir.get("actions", [])))
-                break
-            if deep_issues:
-                logger.warning("[Anim IR] deep validation issues: %s", deep_issues[:3])
-            logger.warning("[Anim IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
-            if ir_try == MAX_IR_RETRIES:
-                logger.warning("[Anim IR] proceeding with last attempt despite issues")
+            # ── Step 2: Animation IR + validation ──
+            anim_ir = None
+            for ir_try in range(1, MAX_IR_RETRIES + 1):
+                attempt_record["anim_ir_tries"] = ir_try
+                ta0 = time.perf_counter()
+                anim_ir, usage_anim = call_llm_anim_ir_with_usage(pseudo_ir)
+                t_anim = time.perf_counter() - ta0
+                logger.info("[Anim IR] attempt %d/%d time=%.2fs", ir_try, MAX_IR_RETRIES, t_anim)
 
-        # ── Step 3: Codegen + Render with self-healing ──
-        manim_code = None
-        video_path = None
-        last_error_type = None
-        last_stderr = None
-        max_codegen_attempts = 3
-        output_dir = RESULT_DIR / "videos"
-        output_name = f"video_{int(time.time())}.mp4"
-        attempt_history: list[dict] = []
+                ir_issues = validate_anim_ir(anim_ir)
+                deep_issues = validate_anim_ir_deep(anim_ir)
+                all_ir_issues = ir_issues + deep_issues
+                if not all_ir_issues:
+                    logger.info("[Anim IR] passed validation — layout=%d actions=%d",
+                                len(anim_ir.get("layout", [])), len(anim_ir.get("actions", [])))
+                    attempt_record["anim_ir_passed"] = True
+                    break
+                if deep_issues:
+                    logger.warning("[Anim IR] deep validation issues: %s", deep_issues[:3])
+                logger.warning("[Anim IR] validation failed (%d issues): %s", len(all_ir_issues), all_ir_issues[:3])
+                if ir_try == MAX_IR_RETRIES:
+                    logger.warning("[Anim IR] proceeding with last attempt despite issues")
 
-        for attempt in range(1, max_codegen_attempts + 1):
-            start = time.perf_counter()
+            # ── Step 3: Codegen + Render with self-healing ──
+            manim_code = None
+            video_path = None
+            last_error_type = None
+            last_stderr = None
+            max_codegen_attempts = 3
+            output_dir = RESULT_DIR / "videos"
+            output_name = f"video_{int(time.time())}.mp4"
+            attempt_history: list[dict] = []
 
-            if attempt == 1:
-                if prev_qa_issues:
-                    # QA feedback loop: use issues from previous pipeline attempt
-                    logger.info("[CodeGen] using QA feedback from previous attempt: %s", prev_qa_issues[:3])
-                    code_try = call_llm_codegen_with_qa_feedback(anim_ir, prev_qa_issues)
+            for attempt in range(1, max_codegen_attempts + 1):
+                start = time.perf_counter()
+                cg_record: dict = {"attempt": attempt, "outcome": "unknown"}
+
+                if attempt == 1:
+                    if prev_qa_issues:
+                        # QA feedback loop: use issues from previous pipeline attempt
+                        logger.info("[CodeGen] using QA feedback from previous attempt: %s", prev_qa_issues[:3])
+                        code_try = call_llm_codegen_with_qa_feedback(anim_ir, prev_qa_issues)
+                        cg_record["mode"] = "qa_feedback"
+                    else:
+                        code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
+                        cg_record["mode"] = "initial"
+                elif last_error_type is not None:
+                    code_try = call_llm_codegen_fix(
+                        manim_code, last_error_type, last_stderr,
+                        anim_ir=anim_ir,
+                        attempt_history=attempt_history,
+                    )
+                    cg_record["mode"] = "fix"
                 else:
                     code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
-            elif last_error_type is not None:
-                code_try = call_llm_codegen_fix(
-                    manim_code, last_error_type, last_stderr,
-                    anim_ir=anim_ir,
-                    attempt_history=attempt_history,
-                )
+                    cg_record["mode"] = "regen"
+
+                issues = validate_manim_code_basic(code_try)
+                ast_issues = validate_manim_code_ast(code_try)
+                all_issues = issues + ast_issues
+                dur = time.perf_counter() - start
+                cg_record["codegen_seconds"] = round(dur, 2)
+                cg_record["static_issues"] = len(issues)
+                cg_record["ast_issues"] = len(ast_issues)
+
+                if all_issues:
+                    logger.warning("[CodeGen] attempt %d/%d static issues (%d) ast issues (%d) %.2fs",
+                                   attempt, max_codegen_attempts, len(issues), len(ast_issues), dur)
+                    if ast_issues:
+                        logger.warning("[CodeGen] AST issues: %s",
+                                       [i["message"] for i in ast_issues[:5]])
+                    manim_code = code_try
+                    if attempt < max_codegen_attempts:
+                        cg_record["outcome"] = "static_failed_skipped_render"
+                        attempt_record["codegen_attempts"].append(cg_record)
+                        continue
+                else:
+                    manim_code = code_try
+                    logger.info("[CodeGen] attempt %d passed %.2fs", attempt, dur)
+
+                # Debug: save generated code
+                debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
+                debug_path = debug_dir / "debug_generated_code_generic.py"
+                try:
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    debug_path.write_text(manim_code or "", encoding="utf-8")
+                except Exception:
+                    pass
+
+                # Try rendering
+                try:
+                    video_path = run_manim_code(manim_code, output_dir, output_name)
+                    logger.info("[Render] success on attempt %d — %s", attempt, video_path)
+                    cg_record["outcome"] = "render_ok"
+                    attempt_record["codegen_attempts"].append(cg_record)
+                    attempt_record["render_succeeded"] = True
+                    break
+                except ManimRenderError as e:
+                    last_error_type = e.error_type
+                    last_stderr = e.stderr_snippet
+                    attempt_history.append({
+                        "attempt": attempt,
+                        "error_type": e.error_type,
+                        "stderr": e.stderr_snippet[-500:],
+                    })
+                    cg_record["outcome"] = "render_failed"
+                    cg_record["error_type"] = e.error_type
+                    attempt_record["codegen_attempts"].append(cg_record)
+                    logger.warning("[Render] attempt %d/%d failed: %s — feeding error back to LLM",
+                                   attempt, max_codegen_attempts, e.error_type)
+                    if attempt == max_codegen_attempts:
+                        logger.warning("[Render] all attempts exhausted — rendering fallback")
+                        video_path = render_fallback(output_dir, output_name, algorithm_name="Algorithm")
+                        attempt_record["used_fallback"] = True
+
+            if video_path is None:
+                video_path = render_fallback(output_dir, output_name, algorithm_name="Algorithm")
+                attempt_record["used_fallback"] = True
+
+            logger.info("[Render] video at %s", video_path)
+
+            # ── Step 4: Vision QA ──
+            qa_domain = anim_ir.get("metadata", {}).get("domain") if isinstance(anim_ir, dict) else None
+            qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0, domain=qa_domain)
+            logger.info("[Vision QA] score=%.1f passed=%s summary=%s",
+                        qa_result["score"], qa_result["passed"], qa_result["summary"])
+            attempt_record["qa_score"] = qa_result.get("score")
+            attempt_record["qa_passed"] = bool(qa_result.get("passed"))
+
+            if qa_result["passed"]:
+                if qa_result["score"] > 0:
+                    logger.info("[Vision QA] PASSED (score=%.1f) — returning video", qa_result["score"])
+                _trace["final_outcome"] = "success"
+                return video_path
+
+            # QA failed — normalize issues for stable QA feedback loop
+            raw_issues = qa_result.get("issues", [])
+            if isinstance(raw_issues, list):
+                prev_qa_issues = [str(issue).strip() for issue in raw_issues if str(issue).strip()]
+            elif isinstance(raw_issues, str):
+                normalized = raw_issues.strip()
+                prev_qa_issues = [normalized] if normalized else []
             else:
-                code_try, usage_codegen = call_llm_codegen_with_usage(anim_ir)
+                prev_qa_issues = []
 
-            issues = validate_manim_code_basic(code_try)
-            ast_issues = validate_manim_code_ast(code_try)
-            all_issues = issues + ast_issues
-            dur = time.perf_counter() - start
-
-            if all_issues:
-                logger.warning("[CodeGen] attempt %d/%d static issues (%d) ast issues (%d) %.2fs",
-                               attempt, max_codegen_attempts, len(issues), len(ast_issues), dur)
-                if ast_issues:
-                    logger.warning("[CodeGen] AST issues: %s",
-                                   [i["message"] for i in ast_issues[:5]])
-                manim_code = code_try
-                if attempt < max_codegen_attempts:
-                    continue
+            if pipeline_attempt < MAX_PIPELINE_ATTEMPTS:
+                logger.warning("[Vision QA] FAILED (score=%.1f) — retrying with QA feedback. Issues: %s",
+                               qa_result["score"], prev_qa_issues)
             else:
-                manim_code = code_try
-                logger.info("[CodeGen] attempt %d passed %.2fs", attempt, dur)
+                logger.warning("[Vision QA] FAILED (score=%.1f) — no retries left, returning best effort. Issues: %s",
+                               qa_result["score"], prev_qa_issues)
+                _trace["final_outcome"] = "best_effort_returned"
+                return video_path
 
-            # Debug: save generated code
-            debug_dir = Path(os.environ.get("GIFPT_RESULT_DIR", "/tmp/gifpt_results"))
-            debug_path = debug_dir / "debug_generated_code_generic.py"
-            try:
-                debug_dir.mkdir(parents=True, exist_ok=True)
-                debug_path.write_text(manim_code or "", encoding="utf-8")
-            except Exception:
-                pass
+        _trace["final_outcome"] = "loop_exhausted"
+        return video_path  # type: ignore[return-value]
 
-            # Try rendering
-            try:
-                video_path = run_manim_code(manim_code, output_dir, output_name)
-                logger.info("[Render] success on attempt %d — %s", attempt, video_path)
-                break
-            except ManimRenderError as e:
-                last_error_type = e.error_type
-                last_stderr = e.stderr_snippet
-                attempt_history.append({
-                    "attempt": attempt,
-                    "error_type": e.error_type,
-                    "stderr": e.stderr_snippet[-500:],
-                })
-                logger.warning("[Render] attempt %d/%d failed: %s — feeding error back to LLM",
-                               attempt, max_codegen_attempts, e.error_type)
-                if attempt == max_codegen_attempts:
-                    logger.warning("[Render] all attempts exhausted — rendering fallback")
-                    video_path = render_fallback(output_dir, output_name, algorithm_name="Algorithm")
-
-        if video_path is None:
-            video_path = render_fallback(output_dir, output_name, algorithm_name="Algorithm")
-
-        logger.info("[Render] video at %s", video_path)
-
-        # ── Step 4: Vision QA ──
-        qa_domain = anim_ir.get("metadata", {}).get("domain") if isinstance(anim_ir, dict) else None
-        qa_result = vision_qa(video_path, user_text, num_frames=4, threshold=5.0, domain=qa_domain)
-        logger.info("[Vision QA] score=%.1f passed=%s summary=%s",
-                    qa_result["score"], qa_result["passed"], qa_result["summary"])
-
-        if qa_result["passed"]:
-            if qa_result["score"] > 0:
-                logger.info("[Vision QA] PASSED (score=%.1f) — returning video", qa_result["score"])
-            return video_path
-
-        # QA failed — normalize issues for stable QA feedback loop
-        raw_issues = qa_result.get("issues", [])
-        if isinstance(raw_issues, list):
-            prev_qa_issues = [str(issue).strip() for issue in raw_issues if str(issue).strip()]
-        elif isinstance(raw_issues, str):
-            normalized = raw_issues.strip()
-            prev_qa_issues = [normalized] if normalized else []
-        else:
-            prev_qa_issues = []
-
-        if pipeline_attempt < MAX_PIPELINE_ATTEMPTS:
-            logger.warning("[Vision QA] FAILED (score=%.1f) — retrying with QA feedback. Issues: %s",
-                           qa_result["score"], prev_qa_issues)
-        else:
-            logger.warning("[Vision QA] FAILED (score=%.1f) — no retries left, returning best effort. Issues: %s",
-                           qa_result["score"], prev_qa_issues)
-            return video_path
-
-    return video_path
+    except Exception as e:
+        _trace["final_outcome"] = "exception"
+        _trace["exception"] = f"{type(e).__name__}: {str(e)[:200]}"
+        raise
+    finally:
+        _dump_render_trace(_trace)
