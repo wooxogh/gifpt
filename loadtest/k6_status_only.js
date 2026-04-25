@@ -8,6 +8,10 @@ const FAKE_JOB_ID = __ENV.LOADTEST_FAKE_JOB_ID || '999999999';
 
 if (!TOKEN) throw new Error('LOADTEST_TOKEN env var required');
 
+// Treat 4xx as expected so http_req_failed reflects real failures only
+// (default is 200–399; without this, 404s inflate the failure rate).
+http.setResponseCallback(http.expectedStatuses({ min: 200, max: 499 }));
+
 export const options = {
   stages: [
     { duration: '2m',  target: 50 },   // warmup
@@ -24,7 +28,7 @@ export const options = {
   ],
   thresholds: {
     // 404 is expected (fake jobId) — not a failure for this test
-    'http_req_failed{expected_response:true}': ['rate<0.05'],
+    'http_req_failed': ['rate<0.05'],
     'http_req_duration': ['p(95)<2000'],
   },
 };

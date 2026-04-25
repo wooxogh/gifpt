@@ -31,7 +31,16 @@ trap 'kill $COLL_PID 2>/dev/null || true' EXIT
 # Pick script and env
 case "$PHASE" in
   phase1)
-    export LOADTEST_TOKEN=$(jq -r '.[0].token' tokens.json)
+    if [[ ! -s tokens.json ]]; then
+      echo "tokens.json missing or empty — run seed_users.py first." >&2
+      exit 1
+    fi
+    LOADTEST_TOKEN=$(jq -r '.[0].token // empty' tokens.json)
+    if [[ -z "$LOADTEST_TOKEN" ]]; then
+      echo "tokens.json has no .[0].token — reseed users." >&2
+      exit 1
+    fi
+    export LOADTEST_TOKEN
     SCRIPT=k6_status_only.js
     ;;
   phase2)
@@ -47,6 +56,10 @@ case "$EXP" in
     ;;
   baseline|redis_cache)
     export POLL_INTERVAL_MS=3000
+    ;;
+  *)
+    echo "unknown experiment: $EXP (valid: baseline | redis_cache | interval_1s)" >&2
+    exit 1
     ;;
 esac
 

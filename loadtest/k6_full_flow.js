@@ -11,6 +11,14 @@ const tokens = new SharedArray('tokens', () =>
   JSON.parse(open('./tokens.json')).map((e) => e.token)
 );
 
+if (tokens.length === 0) {
+  throw new Error('tokens.json is empty — run seed_users.py before phase2');
+}
+
+// Treat 4xx as expected so http_req_failed reflects real failures only
+// (default is 200–399; status polls return 404 transiently before SUCCESS).
+http.setResponseCallback(http.expectedStatuses({ min: 200, max: 499 }));
+
 export const options = {
   stages: [
     { duration: '2m',  target: 100 },  // warmup
@@ -24,7 +32,7 @@ export const options = {
     { duration: '2m',  target: 0 },
   ],
   thresholds: {
-    'http_req_failed{expected_response:true}': ['rate<0.05'],
+    'http_req_failed': ['rate<0.05'],
     'http_req_duration{endpoint:status}': ['p(95)<2000'],
   },
 };

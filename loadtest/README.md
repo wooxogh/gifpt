@@ -5,6 +5,7 @@ See spec: `docs/superpowers/specs/2026-04-21-gifpt-polling-loadtest-design.md`
 ## Prereqs
 - Docker Desktop running
 - k6 (`brew install k6`)
+- jq (`brew install jq`) — used by `run_experiment.sh` and `collect_metrics.sh`
 - Python 3.11+ (for seed_users.py)
 
 ## Quickstart
@@ -30,4 +31,4 @@ python seed_users.py
 ~~~
 
 ## Artifacts
-Each run lands in `results/<timestamp>/`. Final aggregation in `RESULTS.md`.
+Each run lands in `results/<experiment>/<phase>/run<run>-<timestamp>/`. Final aggregation in `RESULTS.md`.

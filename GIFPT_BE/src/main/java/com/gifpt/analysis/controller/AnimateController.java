@@ -190,14 +190,20 @@ public class AnimateController {
         Map<String, Object> response;
 
         Map<String, Object> cached = statusCache != null ? statusCache.get(jobId) : null;
+        // Treat malformed cache entries (missing userId) as a miss so we don't NPE.
+        if (cached != null && !(cached.get("userId") instanceof Number)) {
+            cached = null;
+        }
         if (cached != null) {
             ownerId = ((Number) cached.get("userId")).longValue();
-            response = Map.of(
-                    "jobId", cached.get("jobId"),
-                    "status", cached.get("status"),
-                    "resultUrl", cached.get("resultUrl"),
-                    "errorMessage", cached.get("errorMessage")
-            );
+            Map<String, Object> hit = new java.util.HashMap<>();
+            hit.put("jobId", cached.get("jobId"));
+            hit.put("status", cached.get("status"));
+            hit.put("resultUrl", cached.getOrDefault("resultUrl", ""));
+            hit.put("errorMessage", cached.getOrDefault("errorMessage", ""));
+            // Map.of disallows nulls; an old cache entry with null fields would 500.
+            hit.replaceAll((k, v) -> v == null ? "" : v);
+            response = hit;
         } else {
             AnalysisJob job = analysisJobRepository.findById(jobId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));

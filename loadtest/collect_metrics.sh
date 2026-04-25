@@ -9,25 +9,19 @@ CSV="$OUT/metrics.csv"
 
 ACT=http://localhost:8080/actuator/metrics
 
-metric_value() {
-  curl -s "$ACT/$1" | jq -r '.measurements[] | select(.statistic=="VALUE") | .value' 2>/dev/null || echo ""
+# Take the first matching measurement only — multi-dimension metrics return
+# multiple rows and would otherwise produce a multi-line CSV cell.
+metric_stat() {
+  curl -s "$ACT/$1" \
+    | jq -r --arg s "$2" '[.measurements[]? | select(.statistic==$s) | .value][0] // empty' \
+      2>/dev/null || echo ""
 }
 
-metric_active() {
-  curl -s "$ACT/$1" | jq -r '.measurements[] | select(.statistic=="ACTIVE_TASKS") | .value' 2>/dev/null || echo ""
-}
-
-metric_count() {
-  curl -s "$ACT/$1" | jq -r '.measurements[] | select(.statistic=="COUNT") | .value' 2>/dev/null || echo ""
-}
-
-metric_sum() {
-  curl -s "$ACT/$1" | jq -r '.measurements[] | select(.statistic=="TOTAL_TIME") | .value' 2>/dev/null || echo ""
-}
-
-metric_max() {
-  curl -s "$ACT/$1" | jq -r '.measurements[] | select(.statistic=="MAX") | .value' 2>/dev/null || echo ""
-}
+metric_value()  { metric_stat "$1" VALUE; }
+metric_active() { metric_stat "$1" ACTIVE_TASKS; }
+metric_count()  { metric_stat "$1" COUNT; }
+metric_sum()    { metric_stat "$1" TOTAL_TIME; }
+metric_max()    { metric_stat "$1" MAX; }
 
 echo "ts,http_active,jvm_threads_live,hikari_active,hikari_pending,hikari_timeout_count,gc_pause_total_s,gc_pause_max_s,jvm_mem_used,mysql_threads_connected,mysql_threads_running" > "$CSV"
 

@@ -29,7 +29,7 @@ services:
     platform: linux/arm64
     image: gifpt-spring-loadtest:arm64
     build:
-      context: ./GIFPT_BE
+      context: ../GIFPT_BE
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: loadtest
@@ -42,14 +42,14 @@ services:
     platform: linux/arm64
     image: gifpt-django-loadtest:arm64
     build:
-      context: ./GIFPT_AI
+      context: ../GIFPT_AI
       dockerfile: Dockerfile
 
   worker:
     platform: linux/arm64
     image: gifpt-worker-loadtest:arm64
     build:
-      context: ./loadtest/mock-worker
+      context: ./mock-worker
       dockerfile: Dockerfile
     environment:
       SPRING_CALLBACK_BASE: http://spring:8080
