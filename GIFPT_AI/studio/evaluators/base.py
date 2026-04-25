@@ -14,6 +14,10 @@ EDGE_NAMES: tuple[str, ...] = (
     "anim_codegen",
     "codegen_render",
     "render_qa",
+    # 5th dimension added in Week 4 Day 3. Not a pairwise edge — it's a
+    # transitive check that anchors user_text intent against every stage.
+    # Kept in the same tuple so adapter/feedback code can iterate uniformly.
+    "intent_preservation",
 )
 
 

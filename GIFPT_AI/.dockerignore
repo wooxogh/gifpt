@@ -11,8 +11,12 @@ __pycache__/
 .pytest_cache/
 .vscode/
 .idea/
+.venv/
+venv/
+.git/
 dist/
 build/
 .static/
 media/
 uploads/
+reports/

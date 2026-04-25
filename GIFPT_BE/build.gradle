@@ -25,6 +25,7 @@ repositories {
 }
 
 dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-security:3.3.0'
@@ -48,6 +49,9 @@ dependencies {
 	implementation 'org.springframework.security:spring-security-crypto'
 
 	implementation 'software.amazon.awssdk:s3:2.25.63'
+
+	// Experiment B: Redis-backed status cache (loadtest only, never merged)
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 }
 
 tasks.named('test') {
