@@ -44,6 +44,10 @@ public class AnimateController {
     private final AnalysisJobRepository analysisJobRepository;
     private final RestClient.Builder restClientBuilder;
 
+    // Experiment B: Redis status cache (present only under loadtest profile).
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.gifpt.analysis.cache.StatusCache statusCache;
+
     @Value("${gifpt.s3.bucket}")
     private String s3Bucket;
 
@@ -182,20 +186,47 @@ public class AnimateController {
             @PathVariable Long jobId,
             @AuthenticationPrincipal @Nullable CustomUserPrincipal user
     ) {
-        AnalysisJob job = analysisJobRepository.findById(jobId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));
+        Long ownerId;
+        Map<String, Object> response;
 
-        if (user == null || !job.getUserId().equals(user.getId())) {
+        Map<String, Object> cached = statusCache != null ? statusCache.get(jobId) : null;
+        // Treat malformed cache entries (missing userId) as a miss so we don't NPE.
+        if (cached != null && !(cached.get("userId") instanceof Number)) {
+            cached = null;
+        }
+        if (cached != null) {
+            ownerId = ((Number) cached.get("userId")).longValue();
+            Map<String, Object> hit = new java.util.HashMap<>();
+            hit.put("jobId", cached.get("jobId"));
+            hit.put("status", cached.get("status"));
+            hit.put("resultUrl", cached.getOrDefault("resultUrl", ""));
+            hit.put("errorMessage", cached.getOrDefault("errorMessage", ""));
+            // Map.of disallows nulls; an old cache entry with null fields would 500.
+            hit.replaceAll((k, v) -> v == null ? "" : v);
+            response = hit;
+        } else {
+            AnalysisJob job = analysisJobRepository.findById(jobId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));
+            ownerId = job.getUserId();
+            response = Map.of(
+                    "jobId", job.getId(),
+                    "status", job.getStatus().name(),
+                    "resultUrl", job.getResultUrl() != null ? job.getResultUrl() : "",
+                    "errorMessage", job.getErrorMessage() != null ? job.getErrorMessage() : ""
+            );
+            if (statusCache != null) {
+                Map<String, Object> cacheValue = new java.util.HashMap<>(response);
+                cacheValue.put("userId", ownerId);
+                statusCache.put(jobId, cacheValue);
+            }
+        }
+
+        if (user == null || !ownerId.equals(user.getId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "forbidden"));
         }
 
-        return ResponseEntity.ok(Map.of(
-                "jobId", job.getId(),
-                "status", job.getStatus().name(),
-                "resultUrl", job.getResultUrl() != null ? job.getResultUrl() : "",
-                "errorMessage", job.getErrorMessage() != null ? job.getErrorMessage() : ""
-        ));
+        return ResponseEntity.ok(response);
     }
 
     /**
