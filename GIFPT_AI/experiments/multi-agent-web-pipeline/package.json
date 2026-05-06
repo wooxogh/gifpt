@@ -1,0 +1,9 @@
+{
+  "name": "multi-agent-web-pipeline",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
