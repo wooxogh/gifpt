@@ -1,0 +1,13 @@
+{
+  "name": "web-anim-poc-self-attention",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "node record.mjs",
+    "preview": "open index.html"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
