@@ -13,6 +13,7 @@
 import { chromium } from 'playwright';
 import path from 'path';
 import fs from 'fs';
+import { pathToFileURL } from 'url';
 
 const [, , htmlArg, outDirArg] = process.argv;
 if (!htmlArg || !outDirArg) {
@@ -66,9 +67,9 @@ page.on('requestfailed', req => {
   errors.push(`[requestfailed] ${req.url()} — ${req.failure()?.errorText}`);
 });
 
-const fileUrl = 'file://' + HTML_PATH;
+// Use pathToFileURL to handle spaces, '#', and Windows paths correctly
+const fileUrl = pathToFileURL(HTML_PATH).href;
 console.log(`[record] loading ${fileUrl}`);
-const navStart = Date.now();
 await page.goto(fileUrl, { waitUntil: 'load' });
 
 // Sequentially take snapshots at the planned offsets. If animation finishes

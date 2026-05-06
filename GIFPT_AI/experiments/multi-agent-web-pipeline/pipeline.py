@@ -4,28 +4,47 @@ Multi-agent web animation pipeline (PoC for "갈래 2").
 
 Pipeline:
     paper.md
-        → [Planner] scene_plan.json
-        → [Visualizer] animation.html (SVG + GSAP, single file)
-        → [Renderer + Self-heal] video.webm
+        → [Planner]    scene_plan.json
+        → [Stylist]    styled_plan.json
+        → [Visualizer] animation.html  (SVG + GSAP, single file)
+        → [Renderer + Self-heal] video.webm + frame_N.png keyframes
+        → [Critic]     critic_N.json   (multimodal: looks at keyframes)
+        → [Revisor]    animation_vN.html
+        → loop until acceptable or --max-critic exhausted
 
 Compare against the existing Manim pipeline (`scripts/cherrypick_run.py`)
 fed the same paper as a prompt — both produce video, user judges side-by-side.
 
+Provider selection via PIPELINE_B_MODEL:
+    - "gemini-2.5-pro" (default, requires Google Cloud billing)
+    - "gemini-2.5-flash" / "gemini-2.5-flash-lite" (free tier, daily quota 20)
+    - "gpt-4o" (OpenAI, requires OPENAI_API_KEY)
+    Both providers support multimodal Critic input (Gemini Vision /
+    OpenAI Vision via image_url parts).
+
 Usage:
-    export OPENAI_API_KEY=sk-...
     cd GIFPT_AI/experiments/multi-agent-web-pipeline
+    pip install -r requirements.txt   # one-time
     npm install                       # one-time, for record.mjs
     npx playwright install chromium   # one-time
-    pip install -r requirements.txt   # one-time
+
+    # API key — pipeline.py auto-loads .env from this dir, then GIFPT_AI/.env.
+    # Either GOOGLE_API_KEY (Gemini default) or OPENAI_API_KEY (when overriding
+    # the model) must be present.
     python pipeline.py papers/speculative-decoding.md
+
+    # Override the model:
+    PIPELINE_B_MODEL=gpt-4o python pipeline.py papers/speculative-decoding.md
 
 Output:
     runs/<timestamp>/
         paper.md
-        scene_plan.json
-        animation.html
+        scene_plan.json, styled_plan.json
+        animation_v0.html .. animation_vN.html, animation.html (current)
+        critic_1.json .. critic_N.json
+        frame_0.png .. frame_4.png   (keyframes used by Critic)
         video.webm
-        (+ heal_N.html, console_errors_N.json on retries)
+        (+ heal_PHASE_N.html, console_errors_PHASE_N.json on retries)
 """
 from __future__ import annotations
 
@@ -352,12 +371,30 @@ def _get_gemini_client():
     return _gemini_client
 
 
-def _call_openai(*, system: str, user: str, model: str, json_mode: bool, temperature: float) -> str:
+def _call_openai(*, system: str, user: str, model: str, json_mode: bool, temperature: float,
+                 image_paths: list[Path] | None = None) -> str:
+    import base64
+
+    user_content: Any
+    if image_paths:
+        # OpenAI vision: content is a list with text + image_url parts
+        parts: list[dict[str, Any]] = [{"type": "text", "text": user}]
+        for p in image_paths:
+            with open(p, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            parts.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{b64}"},
+            })
+        user_content = parts
+    else:
+        user_content = user
+
     kwargs: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": system},
-            {"role": "user", "content": user},
+            {"role": "user", "content": user_content},
         ],
         "temperature": temperature,
     }
@@ -401,7 +438,7 @@ def _is_transient(exc: Exception) -> bool:
 
 def call_llm(*, system: str, user: str, json_mode: bool = False, temperature: float = 0.7,
              image_paths: list[Path] | None = None) -> str:
-    """Unified LLM call with retry on transient errors. Multimodal via image_paths (Gemini only)."""
+    """Unified LLM call with retry on transient errors. Multimodal supported on both providers."""
     last_exc: Exception | None = None
     max_attempts = 7  # 5s, 10s, 20s, 40s, 50s, 50s waits → up to ~3 minutes
     for attempt in range(max_attempts):
@@ -409,11 +446,8 @@ def call_llm(*, system: str, user: str, json_mode: bool = False, temperature: fl
             if MODEL.startswith("gemini"):
                 return _call_gemini(system=system, user=user, model=MODEL, json_mode=json_mode,
                                     temperature=temperature, image_paths=image_paths)
-            if image_paths:
-                raise NotImplementedError(
-                    f"Multimodal not implemented for non-Gemini models (got MODEL={MODEL})"
-                )
-            return _call_openai(system=system, user=user, model=MODEL, json_mode=json_mode, temperature=temperature)
+            return _call_openai(system=system, user=user, model=MODEL, json_mode=json_mode,
+                                temperature=temperature, image_paths=image_paths)
         except Exception as exc:
             last_exc = exc
             if attempt >= max_attempts - 1 or not _is_transient(exc):
