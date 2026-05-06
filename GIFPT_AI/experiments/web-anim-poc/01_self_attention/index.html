@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Self-Attention — Web Animation PoC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  :root {
+    --bg-base: #0a0a0f;
+    --bg-surface: #13131a;
+    --bg-elevated: #1c1c26;
+    --border-subtle: #2a2a3a;
+    --accent: #7c6af7;
+    --accent-hover: #9585f8;
+    --accent-glow: rgba(124, 106, 247, 0.4);
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --text-primary: #f0f0f5;
+    --text-secondary: #8888aa;
+    --text-muted: #555577;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Geist', -apple-system, sans-serif;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  .stage {
+    width: 1280px;
+    height: 720px;
+    margin: 0 auto;
+    position: relative;
+    background: radial-gradient(ellipse at top, #15151f 0%, var(--bg-base) 70%);
+    overflow: hidden;
+  }
+  .step-indicator {
+    position: absolute;
+    top: 36px;
+    left: 48px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    color: var(--text-secondary);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0;
+  }
+  .step-indicator .num {
+    color: var(--accent);
+    margin-right: 10px;
+  }
+  .title {
+    position: absolute;
+    top: 36px;
+    right: 48px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .stage-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  /* Tokens */
+  .token-text {
+    font-family: 'Geist', sans-serif;
+    font-size: 28px;
+    font-weight: 600;
+    fill: var(--text-primary);
+    text-anchor: middle;
+  }
+  .token-bg {
+    fill: var(--bg-surface);
+    stroke: var(--border-subtle);
+    stroke-width: 1;
+    rx: 8;
+  }
+  /* Vectors / matrices */
+  .cell {
+    stroke: var(--border-subtle);
+    stroke-width: 0.8;
+  }
+  .cell-text {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    fill: var(--text-primary);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+  .matrix-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    fill: var(--accent);
+    text-anchor: middle;
+  }
+  .matrix-sublabel {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    fill: var(--text-muted);
+    text-anchor: middle;
+  }
+  .arrow {
+    stroke: var(--text-muted);
+    stroke-width: 1.5;
+    fill: none;
+    marker-end: url(#arrowhead);
+  }
+  .formula {
+    font-family: 'Geist Mono', monospace;
+    font-size: 16px;
+    fill: var(--text-secondary);
+    text-anchor: middle;
+  }
+  .glow {
+    filter: drop-shadow(0 0 8px var(--accent-glow));
+  }
+  .replay {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .replay:hover {
+    background: var(--accent);
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="step-indicator" id="step-indicator">
+    <span class="num">01</span><span class="label">Tokens</span>
+  </div>
+  <div class="title">Self-Attention · 1 layer · 3 tokens</div>
+
+  <svg class="stage-svg" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <polygon points="0 0, 8 4, 0 8" fill="#8888aa" />
+      </marker>
+      <linearGradient id="cellGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#1c1c26" />
+        <stop offset="100%" stop-color="#13131a" />
+      </linearGradient>
+    </defs>
+
+    <!-- ============ PHASE 1-2: Tokens + Embeddings (center) ============ -->
+    <g id="phase-tokens">
+      <!-- Token cards -->
+      <g class="token" transform="translate(380, 200)">
+        <rect class="token-bg" x="-50" y="-30" width="100" height="60" rx="10" />
+        <text class="token-text" y="8">"the"</text>
+      </g>
+      <g class="token" transform="translate(640, 200)">
+        <rect class="token-bg" x="-50" y="-30" width="100" height="60" rx="10" />
+        <text class="token-text" y="8">"cat"</text>
+      </g>
+      <g class="token" transform="translate(900, 200)">
+        <rect class="token-bg" x="-50" y="-30" width="100" height="60" rx="10" />
+        <text class="token-text" y="8">"sat"</text>
+      </g>
+
+      <!-- Embedding vectors (4-dim each, under each token) -->
+      <g class="embedding" id="emb-0" transform="translate(380, 360)"></g>
+      <g class="embedding" id="emb-1" transform="translate(640, 360)"></g>
+      <g class="embedding" id="emb-2" transform="translate(900, 360)"></g>
+
+      <!-- Connecting lines token → embedding (drawn during step 2) -->
+      <line class="emb-line" id="emb-line-0" x1="380" y1="232" x2="380" y2="320" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,3" opacity="0" />
+      <line class="emb-line" id="emb-line-1" x1="640" y1="232" x2="640" y2="320" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,3" opacity="0" />
+      <line class="emb-line" id="emb-line-2" x1="900" y1="232" x2="900" y2="320" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,3" opacity="0" />
+
+      <text class="matrix-sublabel" id="emb-label" x="640" y="490" opacity="0">embeddings ∈ ℝ⁴</text>
+    </g>
+
+    <!-- ============ PHASE 3: Q / K / V ============ -->
+    <g id="phase-qkv" opacity="0">
+      <!-- Q, K, V matrices side-by-side, center stage -->
+      <g id="matrix-Q" transform="translate(280, 360)">
+        <text class="matrix-label" y="-20">Q</text>
+        <text class="matrix-sublabel" y="-6">queries</text>
+      </g>
+      <g id="matrix-K" transform="translate(640, 360)">
+        <text class="matrix-label" y="-20">K</text>
+        <text class="matrix-sublabel" y="-6">keys</text>
+      </g>
+      <g id="matrix-V" transform="translate(1000, 360)">
+        <text class="matrix-label" y="-20">V</text>
+        <text class="matrix-sublabel" y="-6">values</text>
+      </g>
+      <text class="formula" x="640" y="560" opacity="0" id="qkv-formula">
+        Q = E · W_Q   K = E · W_K   V = E · W_V
+      </text>
+    </g>
+
+    <!-- ============ PHASE 4: Q @ K^T ============ -->
+    <g id="phase-scores" opacity="0">
+      <!-- Q on left, K^T below, scores grid right -->
+      <g id="matrix-Q-small" transform="translate(220, 360)">
+        <text class="matrix-label" y="-20">Q</text>
+      </g>
+      <g id="matrix-KT" transform="translate(540, 200)">
+        <text class="matrix-label" y="-12">Kᵀ</text>
+      </g>
+      <g id="matrix-scores" transform="translate(820, 360)">
+        <text class="matrix-label" y="-20">Q · Kᵀ</text>
+        <text class="matrix-sublabel" y="-6">attention scores</text>
+      </g>
+      <text class="formula" x="640" y="600" opacity="0" id="scores-formula">
+        score[i,j] = Q[i] · K[j] / √d
+      </text>
+    </g>
+
+    <!-- ============ PHASE 5: Softmax ============ -->
+    <g id="phase-softmax" opacity="0">
+      <g id="matrix-softmax" transform="translate(640, 360)">
+        <text class="matrix-label" y="-20">softmax(Q · Kᵀ)</text>
+        <text class="matrix-sublabel" y="-6">attention weights · row-normalized</text>
+      </g>
+      <text class="formula" x="640" y="600" opacity="0" id="softmax-formula">
+        each row sums to 1.0
+      </text>
+    </g>
+
+    <!-- ============ PHASE 6: × V → output ============ -->
+    <g id="phase-output" opacity="0">
+      <g id="matrix-A-final" transform="translate(220, 360)">
+        <text class="matrix-label" y="-20">A</text>
+        <text class="matrix-sublabel" y="-6">weights</text>
+      </g>
+      <g id="matrix-V-final" transform="translate(540, 360)">
+        <text class="matrix-label" y="-20">V</text>
+      </g>
+      <g id="matrix-out" transform="translate(900, 360)">
+        <text class="matrix-label" y="-20">output</text>
+        <text class="matrix-sublabel" y="-6">contextualized</text>
+      </g>
+      <text class="formula" x="640" y="600" opacity="0" id="out-formula">
+        output = softmax(QKᵀ/√d) · V
+      </text>
+    </g>
+  </svg>
+
+  <button class="replay" id="replay">↻ replay</button>
+</div>
+
+<script>
+//// =============================================================
+//// Self-attention web animation PoC
+//// 30s timeline. Compare against Manim cherry-pick baseline.
+//// =============================================================
+
+const PALETTE = {
+  inactive: '#1c1c26',
+  active:   '#7c6af7',
+  done:     '#4ade80',
+  warn:     '#fbbf24',
+  border:   '#2a2a3a',
+  text:     '#f0f0f5',
+  muted:    '#555577',
+};
+
+// Pseudo-realistic values (handpicked for legibility, not real model weights)
+const EMB = [
+  [0.21, -0.45,  0.78,  0.13], // "the"
+  [0.62,  0.34, -0.15,  0.88], // "cat"
+  [-0.27, 0.51,  0.42, -0.19], // "sat"
+];
+const Q = [
+  [ 0.32,  0.71, -0.18,  0.45],
+  [ 0.81, -0.22,  0.55,  0.13],
+  [-0.41,  0.08,  0.62, -0.27],
+];
+const K = [
+  [ 0.55, -0.31,  0.42,  0.67],
+  [ 0.18,  0.74, -0.05,  0.39],
+  [-0.62,  0.21,  0.83, -0.14],
+];
+const V = [
+  [ 0.44,  0.12, -0.58,  0.71],
+  [ 0.29, -0.66,  0.83,  0.04],
+  [ 0.71,  0.35,  0.18, -0.42],
+];
+const SCORES = [
+  [ 1.24,  0.42, -0.18],
+  [ 0.31,  1.83,  0.07],
+  [-0.42, -0.05,  2.11],
+];
+const SOFTMAX = [
+  [ 0.62,  0.27,  0.11],
+  [ 0.18,  0.74,  0.08],
+  [ 0.07,  0.10,  0.83],
+];
+const OUTPUT = [
+  [ 0.42, -0.06,  0.05,  0.42],
+  [ 0.31, -0.46,  0.59,  0.04],
+  [ 0.65,  0.27,  0.21, -0.34],
+];
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs = {}, children = []) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  for (const c of children) e.appendChild(c);
+  return e;
+}
+
+// Render a column vector (n rows × 1 col) inside a <g>
+function renderColumn(parentG, values, opts = {}) {
+  const cellW = opts.cellW ?? 56;
+  const cellH = opts.cellH ?? 30;
+  const rows = values.length;
+  const totalH = rows * cellH;
+  const startY = -totalH / 2;
+  for (let i = 0; i < rows; i++) {
+    const v = values[i];
+    const cell = el('rect', {
+      class: 'cell',
+      x: -cellW / 2,
+      y: startY + i * cellH,
+      width: cellW,
+      height: cellH,
+      fill: 'url(#cellGrad)',
+      'data-row': i,
+    });
+    parentG.appendChild(cell);
+    const t = el('text', {
+      class: 'cell-text',
+      x: 0,
+      y: startY + i * cellH + cellH / 2,
+    });
+    t.textContent = v.toFixed(2);
+    parentG.appendChild(t);
+  }
+}
+
+// Render a 2D matrix. Returns { cells: [[…]], texts: [[…]] }
+function renderMatrix(parentG, values, opts = {}) {
+  const cellW = opts.cellW ?? 56;
+  const cellH = opts.cellH ?? 30;
+  const rows = values.length;
+  const cols = values[0].length;
+  const totalW = cols * cellW;
+  const totalH = rows * cellH;
+  const startX = -totalW / 2;
+  const startY = -totalH / 2;
+  const cells = [];
+  const texts = [];
+  for (let i = 0; i < rows; i++) {
+    cells.push([]);
+    texts.push([]);
+    for (let j = 0; j < cols; j++) {
+      const cell = el('rect', {
+        class: 'cell',
+        x: startX + j * cellW,
+        y: startY + i * cellH,
+        width: cellW,
+        height: cellH,
+        fill: 'url(#cellGrad)',
+        'data-r': i,
+        'data-c': j,
+      });
+      parentG.appendChild(cell);
+      const t = el('text', {
+        class: 'cell-text',
+        x: startX + j * cellW + cellW / 2,
+        y: startY + i * cellH + cellH / 2,
+      });
+      t.textContent = values[i][j].toFixed(2);
+      parentG.appendChild(t);
+      cells[i].push(cell);
+      texts[i].push(t);
+    }
+  }
+  return { cells, texts, startX, startY, cellW, cellH, rows, cols };
+}
+
+// Set step indicator text
+function setStep(num, label) {
+  const ind = document.getElementById('step-indicator');
+  ind.querySelector('.num').textContent = num.padStart(2, '0');
+  ind.querySelector('.label').textContent = label;
+}
+
+// ---- build initial geometry ----
+function build() {
+  // Embedding column vectors under each token
+  ['emb-0', 'emb-1', 'emb-2'].forEach((id, i) => {
+    const g = document.getElementById(id);
+    g.innerHTML = '';
+    renderColumn(g, EMB[i]);
+  });
+
+  // Q / K / V matrices (3 rows × 4 cols each)
+  const qG = document.getElementById('matrix-Q');
+  const kG = document.getElementById('matrix-K');
+  const vG = document.getElementById('matrix-V');
+  window._Q = renderMatrix(qG, Q, { cellW: 50, cellH: 28 });
+  window._K = renderMatrix(kG, K, { cellW: 50, cellH: 28 });
+  window._V = renderMatrix(vG, V, { cellW: 50, cellH: 28 });
+
+  // Phase 4: Q (small left), K^T (top), scores (right)
+  const qSmallG = document.getElementById('matrix-Q-small');
+  window._Q4 = renderMatrix(qSmallG, Q, { cellW: 44, cellH: 26 });
+  const ktG = document.getElementById('matrix-KT');
+  // K^T is K transposed: 4 rows × 3 cols
+  const KT = K[0].map((_, j) => K.map(row => row[j]));
+  window._KT = renderMatrix(ktG, KT, { cellW: 44, cellH: 26 });
+  const scoresG = document.getElementById('matrix-scores');
+  window._SC = renderMatrix(scoresG, SCORES, { cellW: 60, cellH: 36 });
+
+  // Phase 5: softmax 3x3
+  const sfG = document.getElementById('matrix-softmax');
+  window._SF = renderMatrix(sfG, SOFTMAX, { cellW: 80, cellH: 50 });
+
+  // Phase 6: weights, V, output
+  const aG = document.getElementById('matrix-A-final');
+  window._A6 = renderMatrix(aG, SOFTMAX, { cellW: 50, cellH: 30 });
+  const vfG = document.getElementById('matrix-V-final');
+  window._V6 = renderMatrix(vfG, V, { cellW: 50, cellH: 30 });
+  const outG = document.getElementById('matrix-out');
+  window._OUT = renderMatrix(outG, OUTPUT, { cellW: 56, cellH: 32 });
+
+  // Hide all matrix cells/texts initially (we'll fade them in per phase)
+  ['_Q', '_K', '_V', '_Q4', '_KT', '_SC', '_SF', '_A6', '_V6', '_OUT'].forEach(k => {
+    const m = window[k];
+    m.cells.flat().forEach(c => c.style.opacity = 0);
+    m.texts.flat().forEach(t => t.style.opacity = 0);
+  });
+  // Hide embedding cells/texts initially too
+  ['emb-0', 'emb-1', 'emb-2'].forEach(id => {
+    const g = document.getElementById(id);
+    [...g.children].forEach(c => c.style.opacity = 0);
+  });
+}
+
+// ---- timeline ----
+function play() {
+  build();
+  // Reset
+  gsap.set(['#phase-qkv', '#phase-scores', '#phase-softmax', '#phase-output'], { opacity: 0 });
+  gsap.set('#phase-tokens', { opacity: 1 });
+  gsap.set('.token', { opacity: 0, y: -20 });
+  gsap.set('.emb-line', { opacity: 0 });
+  gsap.set('#emb-label', { opacity: 0 });
+  gsap.set('#step-indicator', { opacity: 0 });
+
+  const tl = gsap.timeline();
+
+  // === Step 1: Tokens ===
+  tl.call(() => setStep('1', 'Input tokens'))
+    .to('#step-indicator', { opacity: 1, duration: 0.5 })
+    .to('.token', { opacity: 1, y: 0, duration: 0.7, stagger: 0.22, ease: 'power2.out' }, '<+0.15')
+    .to({}, { duration: 0.9 });
+
+  // === Step 2: Embeddings ===
+  tl.call(() => setStep('2', 'Embeddings'))
+    .to('.emb-line', { opacity: 1, duration: 0.4, stagger: 0.12 })
+    .to('#emb-0 rect, #emb-0 text', { opacity: 1, duration: 0.5, stagger: 0.05 }, '<+0.15')
+    .to('#emb-1 rect, #emb-1 text', { opacity: 1, duration: 0.5, stagger: 0.05 }, '<+0.2')
+    .to('#emb-2 rect, #emb-2 text', { opacity: 1, duration: 0.5, stagger: 0.05 }, '<+0.2')
+    .to('#emb-label', { opacity: 1, duration: 0.5 }, '<+0.3')
+    .to({}, { duration: 1.0 });
+
+  // === Step 3: Q / K / V ===
+  tl.call(() => setStep('3', 'Project to Q / K / V'))
+    .to('#phase-tokens', { opacity: 0.25, duration: 0.6 })
+    .to('#phase-qkv', { opacity: 1, duration: 0.6 }, '<')
+    .to('#qkv-formula', { opacity: 1, duration: 0.5 }, '<+0.3');
+
+  // Reveal Q, K, V cells row-by-row
+  ['_Q', '_K', '_V'].forEach((mk, idx) => {
+    const m = window[mk];
+    for (let i = 0; i < m.rows; i++) {
+      const cells = m.cells[i];
+      const texts = m.texts[i];
+      tl.to(cells, { opacity: 1, duration: 0.32, stagger: 0.03 }, idx === 0 && i === 0 ? '<+0.3' : '<+0.08')
+        .to(texts, { opacity: 1, duration: 0.32, stagger: 0.03 }, '<');
+    }
+  });
+  tl.to({}, { duration: 0.9 });
+
+  // === Step 4: Q @ K^T ===
+  tl.call(() => setStep('4', 'Compute attention scores'))
+    .to('#phase-qkv', { opacity: 0, duration: 0.6 })
+    .to('#phase-tokens', { opacity: 0, duration: 0.6 }, '<')
+    .to('#phase-scores', { opacity: 1, duration: 0.6 }, '<')
+    .to('#scores-formula', { opacity: 1, duration: 0.5 }, '<+0.3');
+
+  // Show Q (small) and K^T fully
+  const qSmall = window._Q4;
+  const kt = window._KT;
+  tl.to([...qSmall.cells.flat(), ...qSmall.texts.flat()], { opacity: 1, duration: 0.5, stagger: 0.015 }, '<+0.2')
+    .to([...kt.cells.flat(), ...kt.texts.flat()], { opacity: 1, duration: 0.5, stagger: 0.015 }, '<+0.2')
+    .to({}, { duration: 0.5 });
+
+  // Walk through all three dot products of row 1 ("cat" attending to each token).
+  // This makes the pattern obvious: row 1 reaches a clear maximum on column 1 → cat attends most to itself.
+  const sc = window._SC;
+  const focusRow = 1;
+
+  for (const focusCol of [0, 1, 2]) {
+    // Highlight Q row
+    tl.to(qSmall.cells[focusRow], { fill: PALETTE.active, duration: 0.35, stagger: 0.04 }, '<+0.3')
+      // Highlight K^T column
+      .to(kt.cells.map(row => row[focusCol]), { fill: PALETTE.active, duration: 0.35, stagger: 0.04 }, '<+0.15')
+      // Pop the score cell — warn yellow for the diagonal max, otherwise softer
+      .to(sc.cells[focusRow][focusCol], {
+        opacity: 1,
+        fill: focusCol === focusRow ? PALETTE.warn : PALETTE.active,
+        duration: 0.5,
+      }, '<+0.35')
+      .to(sc.texts[focusRow][focusCol], { opacity: 1, fill: PALETTE.text, duration: 0.5 }, '<')
+      .to({}, { duration: 0.6 })
+      // Reset highlights
+      .to(qSmall.cells[focusRow], { fill: 'url(#cellGrad)', duration: 0.3 })
+      .to(kt.cells.map(row => row[focusCol]), { fill: 'url(#cellGrad)', duration: 0.3 }, '<')
+      .to(sc.cells[focusRow][focusCol], { fill: 'url(#cellGrad)', duration: 0.3 }, '<');
+  }
+
+  // Now fill the remaining 6 cells (rows 0 and 2) more briskly
+  for (let i = 0; i < 3; i++) {
+    if (i === focusRow) continue;
+    for (let j = 0; j < 3; j++) {
+      tl.to([sc.cells[i][j], sc.texts[i][j]], { opacity: 1, duration: 0.22 }, '<+0.06');
+    }
+  }
+  tl.to({}, { duration: 0.9 });
+
+  // === Step 5: Softmax ===
+  tl.call(() => setStep('5', 'Softmax (row-wise)'))
+    .to('#phase-scores', { opacity: 0, duration: 0.6 })
+    .to('#phase-softmax', { opacity: 1, duration: 0.6 }, '<')
+    .to('#softmax-formula', { opacity: 1, duration: 0.5 }, '<+0.3');
+
+  const sf = window._SF;
+  // Reveal cells row-by-row, then color each row by intensity (purple = higher attention).
+  // Hold each row briefly so the "this token attends most to ___" pattern lands.
+  for (let i = 0; i < 3; i++) {
+    tl.to([...sf.cells[i], ...sf.texts[i]], { opacity: 1, duration: 0.45, stagger: 0.05 }, '<+0.3');
+    for (let j = 0; j < 3; j++) {
+      const w = SOFTMAX[i][j];
+      const r = Math.round(0x1c + (0x7c - 0x1c) * w);
+      const g = Math.round(0x1c + (0x6a - 0x1c) * w);
+      const b = Math.round(0x26 + (0xf7 - 0x26) * w);
+      tl.to(sf.cells[i][j], { fill: `rgb(${r},${g},${b})`, duration: 0.55 }, '<+0.07');
+    }
+    tl.to({}, { duration: 0.4 });
+  }
+  tl.to({}, { duration: 0.8 });
+
+  // === Step 6: × V → output ===
+  tl.call(() => setStep('6', 'Weighted sum of V'))
+    .to('#phase-softmax', { opacity: 0, duration: 0.6 })
+    .to('#phase-output', { opacity: 1, duration: 0.6 }, '<')
+    .to('#out-formula', { opacity: 1, duration: 0.5 }, '<+0.3');
+
+  const a6 = window._A6;
+  const v6 = window._V6;
+  const out6 = window._OUT;
+  tl.to([...a6.cells.flat(), ...a6.texts.flat()], { opacity: 1, duration: 0.5, stagger: 0.015 }, '<+0.2')
+    .to([...v6.cells.flat(), ...v6.texts.flat()], { opacity: 1, duration: 0.5, stagger: 0.015 }, '<+0.2')
+    .to({}, { duration: 0.4 });
+
+  // For each output row, highlight A row + V (all rows weighted) → reveal output row
+  for (let i = 0; i < 3; i++) {
+    tl.to(a6.cells[i], { fill: PALETTE.active, duration: 0.4 }, '<+0.3')
+      .to(v6.cells.flat(), { fill: PALETTE.active, duration: 0.35 }, '<+0.15')
+      .to([...out6.cells[i], ...out6.texts[i]], { opacity: 1, duration: 0.55, stagger: 0.05 }, '<+0.25')
+      .to(a6.cells[i], { fill: 'url(#cellGrad)', duration: 0.4 }, '<+0.5')
+      .to(v6.cells.flat(), { fill: 'url(#cellGrad)', duration: 0.4 }, '<');
+  }
+
+  // Final flourish: output glows
+  tl.to(out6.cells.flat(), {
+    stroke: PALETTE.done,
+    strokeWidth: 1.5,
+    duration: 0.6,
+  }, '<+0.4')
+  .to({}, { duration: 1.4 });
+
+  // Mark complete
+  tl.call(() => setStep('✓', 'Complete'));
+
+  return tl;
+}
+
+document.getElementById('replay').addEventListener('click', () => {
+  play();
+});
+
+window.addEventListener('load', () => {
+  // Small delay so fonts settle
+  setTimeout(() => play(), 300);
+});
+
+// Expose for Playwright capture: window.__animationDone__ becomes true at end
+window.__playPoC__ = () => {
+  return new Promise(resolve => {
+    const tl = play();
+    tl.eventCallback('onComplete', () => resolve(true));
+  });
+};
+</script>
+</body>
+</html>
