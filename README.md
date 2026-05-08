@@ -1,8 +1,68 @@
-# GIFPT
+# GIFPT — Algorithm → Manim Animation, in 4 LLM stages
 
-**알고리즘 이름 한 줄로 Manim 애니메이션을 생성하는 서비스**
+**알고리즘 이름 한 줄로 Manim 애니메이션을 생성하는 서비스.** 사용자가 알고리즘 이름(예: `bubble sort`, `cnn filter`)을 입력하면, 캐시 미스 시 LLM이 4-stage IR 파이프라인 (Pseudocode → Animation IR → Manim Code → Vision QA)을 거쳐 MP4로 응답합니다.
 
-사용자가 보고 싶은 알고리즘(예: `bubble sort`, `cnn filter`)을 입력하면, 캐시에 없을 경우 LLM이 Pseudocode → Animation IR → Manim 코드를 생성하고 렌더링하여 MP4로 반환합니다.
+> 🥇 **제3회 연세 GenAI 활용 경진대회 금상** (2025-09 ~ 2025-12)
+> 🧪 **회귀 추적**: `weekly_audit.py`가 신규 알고리즘 입력에 대해 4-stage 파이프라인 정확도를 주간 측정
+> 🏗 **Refactored with [gstack](https://github.com/santifer/gstack)** — Spring Boot · Django Worker · Next.js 분리
+
+[![대회](https://img.shields.io/badge/연세_GenAI_경진대회-금상-FFD700)]()
+[![Stack](https://img.shields.io/badge/4--stage_LLM_pipeline-OpenAI_SDK-412991?logo=openai&logoColor=white)]()
+[![Async](https://img.shields.io/badge/Celery_+_Redis-async_queue-DC382D?logo=redis&logoColor=white)]()
+
+---
+
+## 왜 4-stage IR인가 (핵심 결정)
+
+LLM에 "알고리즘 X의 Manim 애니메이션 코드 짜줘"를 한 번에 던지는 zero-shot 접근은 **Manim API 호환성 + 알고리즘 정확성 + 시각화 품질**을 한 모델 호출에 전부 맡기는 구조입니다. 우리는 이를 4단계 IR로 분해했습니다:
+
+| Stage | 역할 | 모델 | 컨텍스트 |
+|-------|------|------|---------|
+| 1. **도메인 분류** (`llm_domain.py`) | sorting / cnn_matrix / general 라우팅 — 전용 렌더러 우선 | gpt-4o | 알고리즘 이름 + prompt |
+| 2. **Pseudocode IR** (`llm_pseudocode.py`) | 자연어 슬러그 → 구조적 의사 코드 (단계 정의) | gpt-4o | — |
+| 3. **Animation IR** (`llm_anim_ir.py`) | Pseudocode → Manim 추상 객체·전이 (Scene-agnostic) | gpt-4o | Pseudocode IR |
+| 4. **Manim Codegen** (`llm_codegen.py`) | IR → Manim Python 코드 | gpt-4o | Animation IR + `manim_api_ref.md` 주입 |
+| 5. **Render + Vision QA** | MP4 렌더 → 결과 영상의 시각 정합성 검증 (최대 3회 재시도, fallback) | manim + Vision LLM | 영상 frame |
+
+**왜 더 나은가:** 각 단계가 작은 책임만 지므로 (a) 실패 지점이 명확하고 (b) 단계별 정확도 측정이 가능하며 (c) 도메인별 전용 렌더러로 hot path를 우회할 수 있습니다 (`render_cnn_matrix.py`, `render_sorting.py`).
+
+**Trade-off:** 한 task 당 OpenAI 호출이 4-14회로 많고, p99 latency가 분 단위. 비동기 큐 (Celery + Redis)로 사용자 응답을 200ms 이하로 고정하고 작업은 백그라운드에서 진행합니다.
+
+---
+
+## 회귀 추적 (`weekly_audit.py`)
+
+LLM 파이프라인의 가장 큰 약점은 **silent regression** — 모델 업데이트나 프롬프트 수정으로 정확도가 조용히 떨어지는 것. 이를 잡기 위해 주간 audit:
+
+- 신규/기존 알고리즘 입력 N개에 대해 4-stage 파이프라인 실행
+- 단계별 출력 (Pseudocode IR / Animation IR / Manim Code) 와 최종 영상 Vision QA 결과를 함께 기록
+- 이전 주 대비 성공률 / 단계별 실패 분포 차이 출력
+- 회귀 발견 시 어느 stage에서 깨졌는지 즉시 식별
+
+→ 이 패턴이 [career-ops](https://github.com/wooxogh/career-ops)의 Harness CI 피봇 ("LLM 파이프라인의 회귀 추적 도구화") 의 출발점.
+
+---
+
+## 시스템 아키텍처 요약
+
+3-tier 모노레포로 분리, 각자 다른 SLO:
+
+| 서비스 | SLO 목표 | 이유 |
+|-------|---------|------|
+| **Spring Boot** (`GIFPT_BE`) | p99 < 200ms | 사용자 응답 (캐시 조회 + JWT + enqueue) |
+| **Django + Celery** (`GIFPT_AI`) | best-effort | LLM 호출 분 단위, 실패 재시도 가능 |
+| **Next.js** (`gifpt-fe`) | TTI < 1s | Vercel edge |
+
+**핵심 원칙:** 사용자 응답 path와 LLM 작업 path를 물리적으로 분리. Spring 장애가 LLM 워커에 영향 없음, 반대도 마찬가지. (자세한 컴포넌트 표는 아래 [시스템 아키텍처](#시스템-아키텍처) 섹션.)
+
+---
+
+## 이 프로젝트가 보여주는 것
+
+1. **LLM 파이프라인 분해 사고** — 단일 zero-shot 호출의 한계를 인지하고 IR 단계별로 책임을 분리. 단계별 측정·롤백 가능한 구조.
+2. **silent regression 추적 도구화** — `weekly_audit.py`로 회귀를 자동 감지. 동일 패턴이 career-ops Harness CI로 확장됨.
+3. **사용자 응답 SLO 분리** — 분 단위 작업을 200ms 응답에 끼워넣지 않고 큐로 분리. Spring/Django/Next.js 각각 다른 SLO 명시.
+4. **도메인 특화 hot path** — sorting / cnn_matrix는 전용 렌더러로 LLM 호출 우회. "LLM이 모든 걸 해야 한다"의 반대 방향.
 
 ---
 
